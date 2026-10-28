@@ -229,7 +229,7 @@ export function EquipoView({
                     </thead>
                     <tbody>
                       {g.people.map((p) => {
-                        const oculto = p.roomScope === "self" || p.roomScope === "custom";
+                        const oculto = p.roomHidden ?? (p.roomScope === "self" || p.roomScope === "custom");
                         const room = p.room === "n/a" ? "No viaja" : oculto ? "Oculto" : p.room;
                         const roomClass = p.room === "n/a" ? "tag tag-neutral" : oculto ? "tag tag-accent-2" : "tag tag-accent";
                         return (

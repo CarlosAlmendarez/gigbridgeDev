@@ -8,6 +8,7 @@
     "start": "pnpm --filter @gigbridge/web start",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test:rls": "pnpm --filter @gigbridge/rls-tests test"
+    "test:rls": "pnpm --filter @gigbridge/rls-tests test",
+    "seed:demo": "pnpm --filter @gigbridge/demo-seed seed"
   }
 }

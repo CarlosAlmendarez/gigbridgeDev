@@ -9,7 +9,7 @@ import type {
   TourVehicleRow,
   VenueRow,
 } from "@gigbridge/types";
-import { docStatus, mapNote, mapRoster, mapTourDate, type DateExtras, type RosterRow } from "./mappers";
+import { docStatus, mapNote, mapRoster, mapTourDate, type DateExtras, type LaborCallWithDept, type RosterRow } from "./mappers";
 import type { TourRepository, TourScope } from "./repository";
 
 /**
@@ -158,7 +158,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       if (!date) return null;
 
       const [labor, rooms, notes, vehicles, docs] = await Promise.all([
-        client.from("labor_calls").select("*").eq("tour_date_id", dateId),
+        client.from("labor_calls").select("*, department:departments(name)").eq("tour_date_id", dateId),
         client.from("hotel_room_assignments").select("*").eq("tour_date_id", dateId),
         client
           .from("tour_notes")
@@ -176,7 +176,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
 
       const noteRows = (notes.data ?? []) as Array<Pick<TourNoteRow, "entity_type" | "entity_id" | "body" | "created_at">>;
       const extras: DateExtras = {
-        laborCalls: (labor.data ?? []) as LaborCallRow[],
+        laborCalls: (labor.data ?? []) as LaborCallWithDept[],
         setlistSongs: first(date.setlists)?.songs.length ?? null,
         hotelRooms: (rooms.data ?? []) as HotelRoomAssignmentRow[],
         ...docs,

@@ -24,6 +24,7 @@ Run from the repo root unless noted:
 - `pnpm lint` — lint every workspace package (`pnpm -r lint`)
 - `pnpm typecheck` — typecheck every workspace package (`pnpm -r typecheck`)
 - Target a single package: `pnpm --filter @gigbridge/data typecheck`, `pnpm --filter @gigbridge/web lint`, etc.
+- `pnpm seed:demo` — loads the "Norte 2026" demo tour (`tools/demo-seed`) into the dev project, with three logins (`phil.demo@`, `dani.demo@`, `ruth.demo@example.test`: admin, dept head, party-A member). Idempotent: it deletes the previous demo tour first. Prints a random password unless `DEMO_PASSWORD` is set. Same production guard as the tests. Use it with `TOUR_DATA_SOURCE=supabase`.
 - `pnpm test:rls` — RLS-per-role and tour-repository tests (`tests/rls`, vitest). They run against the **live dev project** using `apps/web/.env.local`: they create real users/rows with the secret key and delete them afterwards, and refuse to start if the URL is the v1 production project. Migrations must be applied first. There is no unit-test runner for the web app and no Playwright yet.
 
 Env setup: copy `apps/web/.env.local.example` to `apps/web/.env.local`. It needs the Supabase URL/publishable key/secret key of the **dev** project above (`irmjtifbhtabxghiikbf` — do not copy v1's `.env.local`, that one points at production), plus `RESEND_API_KEY`/`FROM_EMAIL` for transactional email, and `TOUR_DATA_SOURCE` (`mock` default, or `supabase`).

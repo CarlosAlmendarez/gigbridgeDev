@@ -151,6 +151,12 @@ export interface RosterPerson {
   hotel: string;
   room: string;
   roomScope: RoomScope;
+  /**
+   * Con datos reales: true si la RLS no dejó ver el cuarto a quien consulta
+   * (no hay forma de distinguirlo de "sin cuarto"). El mock no lo define y
+   * la UI cae a ocultar por roomScope, como en el prototipo.
+   */
+  roomHidden?: boolean;
   onSite: boolean;
   note: string;
 }

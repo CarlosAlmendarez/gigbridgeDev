@@ -68,8 +68,11 @@ const CONTACT_VISIBILITY_LABEL: Record<VenueRow["contact_visibility"], string> =
   tour_members: "Contactos solo para el equipo de la gira",
 };
 
+/** El departamento llega embebido cuando la consulta lo pide (getTourDate); en el listado no. */
+export type LaborCallWithDept = LaborCallRow & { department?: { name: string } | null };
+
 export interface DateExtras {
-  laborCalls: LaborCallRow[];
+  laborCalls: LaborCallWithDept[];
   setlistSongs: number | null;
   hotelRooms: HotelRoomAssignmentRow[];
   docs: DocFile[];
@@ -194,7 +197,11 @@ export function mapTourDate(
         { value: hhmm(row.show_time) || "—", label: "Show" },
         { value: crewLocal ? String(crewLocal) : "—", label: "Crew local" },
       ],
-      montaje: sortedLabor.map((l) => ({ time: hhmm(l.call_time), task: l.position_title, area: l.notes ?? "" })),
+      montaje: sortedLabor.map((l) => ({
+        time: hhmm(l.call_time),
+        task: l.position_title,
+        area: l.department?.name ?? l.notes ?? "",
+      })),
       docs: extras.docs,
       notes: extras.dateNotes,
     },
@@ -288,6 +295,7 @@ export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[]): R
       hotel: room?.hotel_name ?? "",
       room: room?.room_number ?? "",
       roomScope: (room?.default_scope ?? "self") as RoomScope,
+      roomHidden: !room,
       onSite: row.status === "confirmed",
       note: "",
     };
