@@ -2,19 +2,25 @@
 
 import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_HITOS, DEFAULT_REMINDERS, DEFAULT_VEHICLES, type NotaEntry, type TourDataSource } from "@gigbridge/data";
-import { GUEST_STATES } from "@gigbridge/config";
-import { addDateNoteAction, addGuestAction, moveSetlistAction } from "@/lib/actions/tour";
+import { DEFAULT_REMINDERS, type NotaEntry, type TourDataSource } from "@gigbridge/data";
+import {
+  addDateNoteAction,
+  addGuestAction,
+  adoptDocumentAction,
+  moveSetlistAction,
+  moveVehicleAction,
+} from "@/lib/actions/tour";
 import type {
   DocFile,
   GroupModeId,
   Guest,
-  Hito,
+  GuestStatus,
   NoteEntry,
   PartyKey,
   ProviderBucket,
   Reminder,
   SetlistSong,
+  TourSummary,
   VehicleLoad,
 } from "@gigbridge/types";
 
@@ -26,7 +32,8 @@ interface TourUIState {
   contactType: string;
   bucket: ProviderBucket;
   filtro: string;
-  hitos: Hito[];
+  /** Horarios del "Reloj del día" marcados como cumplidos, por `${dateId}|${hora}|${etiqueta}`. Solo en este dispositivo. */
+  clockDone: Record<string, boolean>;
   setlist: SetlistSong[];
   vehicles: VehicleLoad[];
   reminders: Reminder[];
@@ -59,6 +66,8 @@ export interface TourServerData {
   guestsByDate: Record<string, Guest[]>;
   setlist: SetlistSong[];
   notas: NotaEntry[];
+  summary: TourSummary;
+  vehicles: VehicleLoad[];
 }
 
 function initialState(data: TourServerData): TourUIState {
@@ -70,9 +79,9 @@ function initialState(data: TourServerData): TourUIState {
     contactType: "Todos",
     bucket: "recinto",
     filtro: "Todos",
-    hitos: DEFAULT_HITOS.map((h) => ({ ...h })),
+    clockDone: {},
     setlist: data.setlist.map((s) => ({ ...s })),
-    vehicles: DEFAULT_VEHICLES.map((v) => ({ ...v })),
+    vehicles: data.vehicles.map((v) => ({ ...v })),
     reminders: DEFAULT_REMINDERS.map((r) => ({ ...r })),
     notas: data.notas.map((n) => ({ ...n })),
     guestsByDate: Object.fromEntries(
@@ -94,6 +103,9 @@ function initialState(data: TourServerData): TourUIState {
 }
 
 interface TourUIContextValue extends TourUIState {
+  /** "supabase": los cambios se guardan y los ve el equipo; "mock": demo en memoria. */
+  source: TourDataSource;
+  summary: TourSummary;
   toggleNight: () => void;
   setLens: (lens: "Todos" | PartyKey) => void;
   setGroupBy: (mode: GroupModeId) => void;
@@ -104,10 +116,11 @@ interface TourUIContextValue extends TourUIState {
   setGroupOpen: (key: string | null) => void;
   toggleGroupOpen: (key: string) => void;
   setCrewSel: (name: string | null) => void;
-  toggleHito: (id: string) => void;
+  toggleClock: (key: string) => void;
   moveSetlist: (index: number, dir: -1 | 1) => void;
   moveVehicle: (index: number, dir: -1 | 1) => void;
   adoptRider: () => void;
+  adoptDocument: (dateId: string, documentId: string) => void;
   dismissReminder: (index: number) => void;
   addReminder: (r: Reminder) => void;
   setNotaDraft: (v: string) => void;
@@ -121,7 +134,7 @@ interface TourUIContextValue extends TourUIState {
   addShowFile: (dateId: string) => void;
   setGuestDraft: (v: string) => void;
   addGuest: (dateId: string) => void;
-  cycleGuestStatus: (dateId: string, index: number) => void;
+  setGuestStatus: (dateId: string, index: number, status: GuestStatus) => void;
 }
 
 const TourUIContext = createContext<TourUIContextValue | null>(null);
@@ -172,7 +185,9 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
 
   const value: TourUIContextValue = {
     ...state,
-    ...(live ? { guestsByDate: data.guestsByDate, setlist: data.setlist, notas: data.notas } : {}),
+    ...(live ? { guestsByDate: data.guestsByDate, setlist: data.setlist, notas: data.notas, vehicles: data.vehicles } : {}),
+    source: data.source,
+    summary: data.summary,
     toggleNight: () => setState((st) => ({ ...st, night: !st.night })),
     setLens: (lens) =>
       setState((st) => ({
@@ -189,19 +204,21 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
     setGroupOpen: (groupOpen) => setState((st) => ({ ...st, groupOpen })),
     toggleGroupOpen: (key) => setState((st) => ({ ...st, groupOpen: st.groupOpen === key ? null : key })),
     setCrewSel: (crewSel) => setState((st) => ({ ...st, crewSel })),
-    toggleHito: (id) =>
-      setState((st) => ({
-        ...st,
-        hitos: st.hitos.map((h) => (h.id === id ? { ...h, done: !h.done } : h)),
-      })),
+    toggleClock: (key) => setState((st) => ({ ...st, clockDone: { ...st.clockDone, [key]: !st.clockDone[key] } })),
     moveSetlist: (index, dir) => {
       if (!live) return move<SetlistSong>("setlist", index, dir);
       const to = index + dir;
       if (to < 0 || to >= data.setlist.length) return;
       sync(() => moveSetlistAction(data.dateId, index, to));
     },
-    moveVehicle: (index, dir) => move<VehicleLoad>("vehicles", index, dir),
+    moveVehicle: (index, dir) => {
+      if (!live) return move<VehicleLoad>("vehicles", index, dir);
+      const to = index + dir;
+      if (to < 0 || to >= data.vehicles.length) return;
+      sync(() => moveVehicleAction(data.dateId, index, to));
+    },
     adoptRider: () => setState((st) => ({ ...st, adopted: true })),
+    adoptDocument: (dateId, documentId) => sync(() => adoptDocumentAction(dateId, documentId)),
     dismissReminder: (index) =>
       setState((st) => ({ ...st, reminders: st.reminders.filter((_, i) => i !== index) })),
     addReminder: (r) => setState((st) => ({ ...st, reminders: st.reminders.concat([r]) })),
@@ -306,11 +323,10 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         };
       });
     },
-    cycleGuestStatus: (dateId, index) => {
+    setGuestStatus: (dateId, index, status) => {
       if (live) {
         const guest = data.guestsByDate[dateId]?.[index];
-        if (!guest?.id) return;
-        const status = GUEST_STATES[(GUEST_STATES.indexOf(guest.status) + 1) % 3];
+        if (!guest?.id || guest.status === status) return;
         // Por el endpoint REST (no Server Action) porque además manda el
         // correo con Resend — ver su route.ts.
         sync(
@@ -336,11 +352,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         ...st,
         guestsByDate: {
           ...st.guestsByDate,
-          [dateId]: (st.guestsByDate[dateId] || []).map((g, i) =>
-            i === index
-              ? { ...g, status: GUEST_STATES[(GUEST_STATES.indexOf(g.status) + 1) % 3] }
-              : g
-          ),
+          [dateId]: (st.guestsByDate[dateId] || []).map((g, i) => (i === index ? { ...g, status } : g)),
         },
       }));
     },

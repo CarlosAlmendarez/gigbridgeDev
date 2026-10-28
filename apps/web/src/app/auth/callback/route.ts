@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { safeNext } from "@/lib/safeNext";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Solo rutas internas: `${origin}${next}` con next="@otro.com" sería otro dominio.
+  const next = safeNext(searchParams.get("next"));
 
   if (code) {
     const supabase = await getSupabaseServerClient();

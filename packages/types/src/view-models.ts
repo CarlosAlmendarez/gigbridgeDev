@@ -42,6 +42,9 @@ export interface VenueContact {
 }
 
 export interface DocFile {
+  /** Con datos reales: id de `documents` y URL de su versión vigente. */
+  documentId?: string;
+  url?: string;
   name: string;
   kind: FileKind;
   meta: string;
@@ -230,7 +233,17 @@ export interface SetlistSong {
   cue: string;
 }
 
+/** Encabezado de la gira para la navegación ("Norte 2026" / "Las Bestias del Valle · 4 fechas"). */
+export interface TourSummary {
+  /** Id real de la gira; el mock no lo tiene. */
+  id?: string;
+  name: string;
+  bandLine: string;
+}
+
 export interface VehicleLoad {
+  /** Id de tour_vehicles con datos reales; el mock no lo tiene. */
+  id?: string;
   label: string;
   meta: string;
 }

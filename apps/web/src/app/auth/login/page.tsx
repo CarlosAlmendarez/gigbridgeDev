@@ -22,6 +22,9 @@ export default function LoginPage() {
     setError(null);
     setResendMsg(null);
     const formData = new FormData(e.currentTarget);
+    // El proxy manda aquí con ?next=<página pedida>; se vuelve a ella al entrar.
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next) formData.set("next", next);
     startTransition(async () => {
       const result = await login(formData);
       if (result?.error) setError(result.error);

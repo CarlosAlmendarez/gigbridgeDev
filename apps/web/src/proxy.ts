@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@gigbridge/data/server";
 import { detectLocale, LOCALE_COOKIE } from "@gigbridge/config";
+import { safeNext } from "@/lib/safeNext";
 
 /**
  * Next.js 16 renombró el middleware: exporta `proxy`, no `middleware`, y
@@ -46,15 +47,15 @@ export async function proxy(request: NextRequest) {
   if (PROTECTED_ROUTES.some((route) => pathname.startsWith(route)) && !user) {
     redirectPath = "/auth/login";
   } else if (AUTH_ROUTES.some((route) => pathname.startsWith(route)) && user) {
-    redirectPath = "/dashboard";
+    // Ya hay sesión: a la página que se pidió originalmente (solo rutas internas).
+    redirectPath = safeNext(request.nextUrl.searchParams.get("next"));
   } else if (pathname === "/auth/setup" && user) {
     const { data: profile } = await supabase.from("profiles").select("id").eq("user_id", user.id).maybeSingle();
     if (profile) redirectPath = "/dashboard";
   }
 
   if (redirectPath) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = redirectPath;
+    const redirectUrl = new URL(redirectPath, request.url);
     if (redirectPath === "/auth/login") redirectUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(redirectUrl);
   }

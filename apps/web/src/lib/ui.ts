@@ -4,7 +4,7 @@
 
 export function navClass(active: boolean) {
   return [
-    "flex items-center gap-3 w-full min-h-11 px-[10px] py-2 rounded-md text-left font-body cursor-pointer",
+    "flex items-center gap-3 min-h-11 px-[10px] py-2 rounded-md text-left font-body cursor-pointer",
     active ? "bg-accent-100 text-accent-800" : "bg-transparent text-text",
   ].join(" ");
 }

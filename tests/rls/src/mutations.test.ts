@@ -91,7 +91,7 @@ describe("notas", () => {
     const date = await repo.getTourDate(f.tourDateId);
     expect(date?.show.notes.map((n) => n.body)).toContain("Nota de fecha");
     expect(date?.venue.notes.map((n) => n.body)).toContain("Nota de venue");
-    expect(date?.show.notes[0].meta).toMatch(/^RLS lights · \d{4}-\d{2}-\d{2}$/);
+    expect(date?.show.notes[0].meta).toMatch(/^RLS lights · [A-ZÁÉÍÓÚ][a-záéíóú]{2} \d{1,2} [a-z]{3}$/);
 
     const feed = await repo.listTourNotes();
     expect(feed.find((n) => n.body === "Nota de fecha")?.origen).toBe("Fecha · Vie 20 nov");

@@ -16,11 +16,20 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
 
   return (
     <div className="pt-6">
-      <div className="text-xs tracking-[0.1em] uppercase text-neutral-700">Proveedores externos</div>
-      <h1 className="text-[48px] my-1 mb-2 tracking-[-0.03em]">El Club</h1>
+      <div className="text-xs tracking-[0.1em] uppercase text-neutral-700">Directorio externo</div>
+      <h1 className="text-[40px] sm:text-[48px] my-1 mb-2 tracking-[-0.03em]">Proveedores</h1>
       <p className="text-base max-w-[60ch]">
-        Los proveedores no son parte de ninguna party: son externos. Se separan por cómo puedes contratarlos.
+        Empresas y técnicos externos a la gira (no pertenecen a ninguna party), separados según si puedes contratarlos
+        para esta fecha.
       </p>
+
+      {allProviders.length === 0 ? (
+        <p className="text-sm text-neutral-700 pt-4 max-w-[60ch]">
+          Todavía no hay proveedores registrados para esta gira. El directorio se llenará cuando se capturen los
+          proveedores autorizados de cada venue.
+        </p>
+      ) : (
+        <>
 
       <div className="flex gap-1 flex-wrap pt-4 pb-2">
         {BUCKETS.map((b) => (
@@ -30,6 +39,7 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
         ))}
       </div>
       <p className="text-[15px] text-neutral-700 max-w-[64ch] m-0">{bucketDef.help}</p>
+      {providers.length === 0 && <p className="text-sm text-neutral-700 pt-3">No hay proveedores en esta categoría.</p>}
       <div className="flex gap-1 flex-wrap pt-3 pb-6">
         {services.map((f) => (
           <button key={f} type="button" onClick={() => setFiltro(f)} className={chipClass(filtro === f, true)}>
@@ -65,7 +75,7 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
               <div className="text-[13px] italic text-neutral-700 mt-[3px]">{p.note}</div>
               {contactable && (
                 <div className="flex gap-2 mt-2">
-                  <a className="btn btn-secondary min-h-10" href={`tel:${p.tel}`}>
+                  <a className="btn btn-secondary min-h-10" href={`tel:${p.tel}`} aria-label={`Llamar a ${p.name}`}>
                     <Icon name="phone" size={17} />
                     Llamar
                   </a>
@@ -79,6 +89,8 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

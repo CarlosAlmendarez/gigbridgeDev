@@ -15,7 +15,6 @@ import type {
   TourDateRow,
   TourMemberRole,
   TourNoteRow,
-  TourVehicleRow,
   VenueRow,
 } from "@gigbridge/types";
 
@@ -85,7 +84,6 @@ export interface DateExtras {
   venueDocs: DocFile[];
   dateNotes: NoteEntry[];
   venueNotes: NoteEntry[];
-  vehicles: TourVehicleRow[];
 }
 
 export const EMPTY_EXTRAS: DateExtras = {
@@ -96,7 +94,6 @@ export const EMPTY_EXTRAS: DateExtras = {
   venueDocs: [],
   dateNotes: [],
   venueNotes: [],
-  vehicles: [],
 };
 
 /**
@@ -165,20 +162,14 @@ export function mapTourDate(
     clock,
     clockNote: venue ? row.notes ?? "" : "",
     hotel: hotel?.hotel_name ?? "",
-    hotelMeta: hotel?.check_in ? `check-in ${hotel.check_in}` : "",
+    hotelMeta: hotel?.check_in ? `Check-in ${shortDateLabel(hotel.check_in)}` : "",
     hotelMap: hotel ? `https://maps.google.com/?q=${encodeURIComponent(hotel.hotel_name)}` : "",
     venueRider: venue ? `${venue.name} — expediente técnico` : "Sin venue en esta fecha",
     venueRiderNote: venue?.stage_notes ?? "",
-    advanceLine: row.advance_date ? `Avance del ${row.advance_date}` : "Avance pendiente",
-    itinerary: extras.vehicles
-      .slice()
-      .sort((a, b) => (a.load_order ?? 0) - (b.load_order ?? 0))
-      .map((v) => ({
-        icon: v.vehicle_type === "truck" ? "truck" : v.vehicle_type === "bus" ? "bus" : "van",
-        title: v.label,
-        meta: v.load_order != null ? `Orden de carga ${v.load_order}` : "",
-        note: "",
-      })),
+    advanceLine: row.advance_date ? `Avance cerrado el ${shortDateLabel(row.advance_date)}` : "Avance pendiente",
+    // Vuelos y traslados todavía no tienen tabla. Los vehículos de la gira
+    // NO van aquí: son el "Orden de carga" (listVehicles), no un itinerario.
+    itinerary: [],
     venue: {
       kicker: venue ? place : "Día de viaje",
       name: venue?.name ?? "Sin recinto",
@@ -232,10 +223,10 @@ export type NoteWithAuthor = Pick<TourNoteRow, "body" | "created_at"> & {
   author?: { display_name: string } | { display_name: string }[] | null;
 };
 
-/** meta = "Autor · AAAA-MM-DD", como el "Phil G. · hace 2 h" del prototipo pero sin tiempo relativo. */
+/** meta = "Autor · mié 28 oct", como el "Phil G. · hace 2 h" del prototipo pero sin tiempo relativo. */
 export function mapNote(row: NoteWithAuthor, origen?: string): NoteEntry {
   const author = Array.isArray(row.author) ? row.author[0] : row.author;
-  const meta = [author?.display_name, row.created_at.slice(0, 10)].filter(Boolean).join(" · ");
+  const meta = [author?.display_name, shortDateLabel(row.created_at.slice(0, 10))].filter(Boolean).join(" · ");
   return { body: row.body, meta, ...(origen ? { origen } : {}) };
 }
 

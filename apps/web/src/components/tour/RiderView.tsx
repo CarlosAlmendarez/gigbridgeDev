@@ -3,8 +3,86 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
+import { mapFiles } from "@gigbridge/data";
+import type { TourDate } from "@gigbridge/types";
+import { FileList } from "./FileList";
 
-export function RiderView({ dateId }: { dateId: string }) {
+export function RiderView({ dateId, tourDate }: { dateId: string; tourDate: TourDate }) {
+  const { source } = useTourUI();
+  return source === "supabase" ? (
+    <LiveDocuments dateId={dateId} d={tourDate} />
+  ) : (
+    <PrototypeRider dateId={dateId} />
+  );
+}
+
+/**
+ * Documentos ligados a la fecha (tour_date_document_refs, 0007) y su
+ * vigencia: "Revisar" = el venue o la banda publicó una versión más nueva
+ * que la que usa esta fecha. Un admin la adopta y la fecha pasa a vigente.
+ */
+function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
+  const { adoptDocument } = useTourUI();
+  const files = mapFiles(d.show.docs);
+  const outdated = files.filter((f) => f.status === "revisar" && f.documentId);
+
+  return (
+    <div className="pt-6 max-w-[760px]">
+      <Link className="btn btn-ghost min-h-10 pl-0" href={`/tour/${dateId}/dia`}>
+        <Icon name="arrow-left" size={18} />
+        Hoja del día
+      </Link>
+      <div className="text-xs tracking-[0.1em] uppercase text-neutral-700 pt-2">{d.dateline}</div>
+      <h1 className="text-[40px] sm:text-[44px] my-1 mb-2 tracking-[-0.03em]">Documentos y versiones</h1>
+      <p className="text-base m-0 max-w-[60ch]">
+        Cada fecha usa una versión concreta de cada documento (rider, plano, patch list). Si el dueño publica una versión
+        más nueva, la fecha no cambia sola: aparece como <strong>Revisar</strong> hasta que un admin de la gira la adopte.
+      </p>
+
+      <div className="pt-6">
+        {files.length === 0 ? (
+          <p className="text-sm text-neutral-700">Esta fecha todavía no tiene documentos ligados.</p>
+        ) : (
+          <FileList files={files} />
+        )}
+      </div>
+
+      {outdated.length > 0 && (
+        <div className="pt-6">
+          <h6 className="mb-1">Versiones nuevas disponibles</h6>
+          <p className="text-xs text-neutral-700 mb-3">
+            Al adoptar, esta fecha pasa a usar la versión vigente. Asegúrate de reenviarla a quien la necesite.
+          </p>
+          <div className="flex flex-col gap-2">
+            {outdated.map((f) => (
+              <div key={f.documentId} className="flex items-center gap-3">
+                <span className="flex-1 min-w-0 text-sm break-words">{f.name}</span>
+                <button type="button" className="btn btn-secondary min-h-10" onClick={() => adoptDocument(dateId, f.documentId!)}>
+                  Usar la versión vigente
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-6 text-xs text-neutral-700 flex flex-col gap-1">
+        <div>
+          <span className="tag tag-accent">Vigente</span> la fecha usa la versión más reciente.
+        </div>
+        <div>
+          <span className="tag tag-accent-2">Revisar</span> hay una versión más nueva que la que usa esta fecha.
+        </div>
+        <div>
+          <span className="tag tag-outline">Pendiente de subir</span> el documento existe pero no tiene archivo todavía.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Gira de ejemplo: la pantalla del prototipo de Claude Design. */
+function PrototypeRider({ dateId }: { dateId: string }) {
   const { adopted: adoptedState, adoptRider } = useTourUI();
   const stale = true; // riderDesactualizado default
   const adopted = adoptedState === null ? !stale : adoptedState;
@@ -17,7 +95,7 @@ export function RiderView({ dateId }: { dateId: string }) {
     <div className="pt-6">
       <Link className="btn btn-ghost min-h-10 pl-0" href={`/tour/${dateId}/dia`}>
         <Icon name="arrow-left" size={18} />
-        Día de show
+        Hoja del día
       </Link>
       <div className="text-xs tracking-[0.1em] uppercase text-neutral-700 pt-2">Rider técnico</div>
       <h1 className="text-[44px] my-1 mb-2 tracking-[-0.03em]">Las Bestias del Valle</h1>

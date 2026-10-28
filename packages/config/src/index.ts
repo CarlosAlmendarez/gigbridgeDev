@@ -22,20 +22,22 @@ export const VISIBILITY_SCOPES = ["self", "department", "tour_all", "custom"] as
 export const GUEST_STATES: GuestStatus[] = ["confirmed", "pending", "denied"];
 export const PROVIDER_BUCKETS: ProviderBucket[] = ["recinto", "local", "general", "vetado"];
 
+// "Hoja del día" (no "Día de show"): también hay días de viaje y holds, y
+// "Show" ya es la pestaña de la ficha técnica del show.
 export const TABS: TabDef[] = [
-  { id: "hoy", label: "Día de show", icon: "calendar-dot" },
+  { id: "hoy", label: "Hoja del día", icon: "calendar-dot" },
   { id: "show", label: "Show", icon: "microphone-stage" },
   { id: "lugar", label: "Lugar", icon: "map-trifold" },
   { id: "equipo", label: "Equipo", icon: "users-three" },
-  { id: "club", label: "Club", icon: "address-book" },
+  { id: "club", label: "Proveedores", icon: "address-book" },
 ];
 
 export const EQUIPO_TABS: EquipoTabDef[] = [
   { id: "crew", label: "Crew", title: "Crew", help: "Quién está en la gira, agrupado como lo necesites ver." },
   { id: "areas", label: "Áreas", title: "Áreas", help: "Cuánta gente hay en cada bloque y quién lo lidera." },
   { id: "ubicaciones", label: "Ubicaciones", title: "Ubicaciones", help: "Dónde duerme cada persona de la gira, por bloque." },
-  { id: "contactos", label: "Contactos", title: "Contactos del show", help: "Perfil completo: nombre, rol, correo, teléfono y notas." },
-  { id: "invitados", label: "Invitados", title: "Invitados", help: "Guest list de la fecha y el consolidado de la gira." },
+  { id: "contactos", label: "Contactos", title: "Contactos", help: "Teléfonos y correos del equipo de la gira y de contactos externos: venue, promotor, hotel y proveedores." },
+  { id: "invitados", label: "Invitados", title: "Invitados", help: "Lista de invitados de esta fecha y el resumen de toda la gira." },
 ];
 
 export const PARTIES: Record<PartyKey, PartyDef> = {

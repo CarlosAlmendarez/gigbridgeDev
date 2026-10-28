@@ -1,17 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ExternalContact, Guest, Provider, RosterPerson, SetlistSong, TourDate, Vacancy } from "@gigbridge/types";
+import type {
+  ExternalContact,
+  Guest,
+  Provider,
+  RosterPerson,
+  SetlistSong,
+  TourDate,
+  TourSummary,
+  Vacancy,
+  VehicleLoad,
+} from "@gigbridge/types";
 import {
+  BAND_LINE,
   DATES,
   DEFAULT_NOTAS,
   DEFAULT_SETLIST,
+  DEFAULT_VEHICLES,
   EXTERNAL_CONTACTS,
   GUESTS_SEED,
   PROVIDERS,
   ROSTER,
+  TOUR_NAME,
   VACANCIES,
   type NotaEntry,
 } from "./mockData";
-import { createSupabaseTourRepository, findOpeningTourDateId } from "./supabaseRepository";
+import { createSupabaseTourRepository, findOpeningTourDateId, listMyTours, type MyTour } from "./supabaseRepository";
 
 /**
  * Capa de lectura del módulo de gira, con dos fuentes intercambiables:
@@ -25,10 +38,8 @@ import { createSupabaseTourRepository, findOpeningTourDateId } from "./supabaseR
  *
  * Secciones de la UI que todavía NO tienen tabla y en "supabase" salen
  * vacías: proveedores (club), contactos externos y vacantes. Tablas que
- * existen pero aún no alimentan la UI: reminders y tour_vehicles como lista
- * editable (hitos, vehículos y recordatorios siguen siendo estado local de
- * apps/web/src/context/TourUIContext.tsx). Las escrituras viven en
- * mutations.ts.
+ * existen pero aún no alimentan la UI: reminders (en modo supabase la
+ * sección se oculta). Las escrituras viven en mutations.ts.
  */
 
 export type TourDataSource = "mock" | "supabase";
@@ -50,6 +61,10 @@ export interface TourRepository {
   getSetlist(dateId: string): Promise<SetlistSong[]>;
   /** Notas de toda la gira (fechas y venues), la más reciente primero. */
   listTourNotes(): Promise<NotaEntry[]>;
+  /** null si la gira no existe o la RLS no deja verla. */
+  getTourSummary(): Promise<TourSummary | null>;
+  /** Vehículos de la gira en orden de carga. */
+  listVehicles(): Promise<VehicleLoad[]>;
 }
 
 export function createMockTourRepository(): TourRepository {
@@ -64,6 +79,8 @@ export function createMockTourRepository(): TourRepository {
     // El prototipo tiene un solo setlist para todas las fechas.
     getSetlist: async () => DEFAULT_SETLIST,
     listTourNotes: async () => DEFAULT_NOTAS,
+    getTourSummary: async () => ({ name: TOUR_NAME, bandLine: BAND_LINE }),
+    listVehicles: async () => DEFAULT_VEHICLES,
   };
 }
 
@@ -76,4 +93,4 @@ export function createTourRepository(
   return createSupabaseTourRepository(options.client, options.scope);
 }
 
-export { createSupabaseTourRepository, findOpeningTourDateId };
+export { createSupabaseTourRepository, findOpeningTourDateId, listMyTours, type MyTour };

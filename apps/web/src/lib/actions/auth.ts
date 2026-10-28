@@ -10,6 +10,7 @@ import {
   updateProfileRole as updateProfileRoleData,
 } from "@gigbridge/data";
 import type { UserRole } from "@gigbridge/types";
+import { safeNext } from "@/lib/safeNext";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 
 /**
@@ -30,7 +31,8 @@ export async function login(formData: FormData) {
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  // Vuelve a la página que se pidió antes del login (el proxy la manda en ?next=).
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function register(formData: FormData) {

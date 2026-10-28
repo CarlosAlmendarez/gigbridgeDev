@@ -189,7 +189,22 @@
     "bvw_selfVerified": "✓ Verificado",
     "bvw_selfError": "Error al verificar",
     "capacity": "Aforo",
-    "monitors": "Monitores"
+    "monitors": "Monitores",
+    "myToursTitle": "Mis giras",
+    "myToursDesc": "Las giras en las que formas parte del equipo. Ábrelas para ver la hoja del día, el venue y el equipo.",
+    "openTour": "Abrir gira",
+    "tourDatesCount": "{count, plural, one {# fecha} other {# fechas}}",
+    "noToursTitle": "Todavía no formas parte de ninguna gira",
+    "noToursDesc": "Cuando el admin de una gira te agregue a su equipo con este correo, la gira aparecerá aquí.",
+    "demoTourTitle": "Gira de ejemplo",
+    "demoTourDesc": "Explora \"Norte 2026\" para conocer la herramienta. Los cambios que hagas ahí no se guardan.",
+    "myVenueTitle": "Mi venue",
+    "myVenueDesc": "Expediente técnico, fotos y perfil público de tu venue.",
+    "openVenue": "Ir a mi venue",
+    "tourStatus_planning": "En planeación",
+    "tourStatus_active": "En curso",
+    "tourStatus_completed": "Terminada",
+    "tourStatus_cancelled": "Cancelada"
   },
   "settings": {
     "title": "Configuración",

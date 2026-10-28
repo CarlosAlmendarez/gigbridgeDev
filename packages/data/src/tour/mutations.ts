@@ -113,3 +113,56 @@ export async function addDateNote(
   if (error) return { ok: false, message: "No se pudo guardar la nota." };
   return { ok: true, result: null };
 }
+
+/** Reordena el "Orden de carga" (tour_vehicles.load_order). Solo admins (RLS). */
+export async function moveTourVehicle(
+  client: SupabaseClient,
+  input: { tourDateId: string; fromIndex: number; toIndex: number }
+): Promise<ActionResult<null>> {
+  const parsed = reorderListSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Datos inválidos" };
+  const { tourDateId, fromIndex, toIndex } = parsed.data;
+
+  const { data: date } = await client.from("tour_dates").select("tour_id").eq("id", tourDateId).maybeSingle();
+  if (!date) return { ok: false, message: "Fecha no encontrada." };
+  const { data: rows } = await client
+    .from("tour_vehicles")
+    .select("id")
+    .eq("tour_id", date.tour_id)
+    .order("load_order", { nullsFirst: false });
+  const ids = (rows ?? []).map((r) => r.id as string);
+  if (fromIndex >= ids.length || toIndex >= ids.length) return { ok: false, message: "Posición fuera de la lista." };
+  const [moved] = ids.splice(fromIndex, 1);
+  ids.splice(toIndex, 0, moved);
+
+  // Solo cambian las filas entre ambas posiciones; si la RLS rechaza la
+  // primera, rechaza todas (misma gira, misma policy).
+  const lo = Math.min(fromIndex, toIndex);
+  const hi = Math.max(fromIndex, toIndex);
+  for (let i = lo; i <= hi; i++) {
+    const { data } = await client.from("tour_vehicles").update({ load_order: i + 1 }).eq("id", ids[i]).select("id");
+    if (!data?.length) return { ok: false, message: "Solo un admin de la gira puede cambiar el orden de carga." };
+  }
+  return { ok: true, result: null };
+}
+
+/**
+ * Referencia en vivo (doc de estrategia §3): la fecha pasa a usar la
+ * versión vigente del documento. Solo admins (tour_date_document_refs).
+ */
+export async function adoptCurrentDocumentVersion(
+  client: SupabaseClient,
+  input: { tourDateId: string; documentId: string }
+): Promise<ActionResult<null>> {
+  const { data: doc } = await client.from("documents").select("current_version_id").eq("id", input.documentId).maybeSingle();
+  if (!doc?.current_version_id) return { ok: false, message: "El documento no tiene una versión vigente." };
+
+  const { data } = await client
+    .from("tour_date_document_refs")
+    .update({ seen_version_id: doc.current_version_id })
+    .eq("tour_date_id", input.tourDateId)
+    .eq("document_id", input.documentId)
+    .select("id");
+  if (!data?.length) return { ok: false, message: "Solo un admin de la gira puede cambiar la versión que usa esta fecha." };
+  return { ok: true, result: null };
+}

@@ -35,6 +35,11 @@ import type { TourRepository, TourScope } from "./repository";
  * pendientes; getTourDate trae además labor, cuartos, documentos y notas.
  */
 
+// documents.current_version_id → document_versions es una de dos relaciones
+// entre esas tablas; el nombre del FK desambigua el embed.
+const DOC_COLUMNS =
+  "id, title, current_version_id, document_type:document_types(label), current_version:document_versions!documents_current_version_fkey(file_url, version_number)";
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type DateWithVenue = TourDateRow & { venue: VenueRow | null };
@@ -61,6 +66,47 @@ export async function findOpeningTourDateId(client: SupabaseClient, today: strin
   const latest = await client.from("tour_dates").select("id").order("show_date", { ascending: false }).limit(1);
   if (latest.error) fail("tour_dates", latest.error);
   return (latest.data?.[0]?.id as string | undefined) ?? null;
+}
+
+export interface MyTour {
+  id: string;
+  name: string;
+  bandName: string;
+  status: string;
+  firstDate: string | null;
+  lastDate: string | null;
+  datesCount: number;
+  /** Fecha con la que abrir la gira: la próxima, o la última si ya pasaron todas. */
+  openDateId: string | null;
+}
+
+/** Giras que la RLS deja ver al usuario (las suyas como miembro o creador), para el inicio. */
+export async function listMyTours(client: SupabaseClient, today: string): Promise<MyTour[]> {
+  const { data, error } = await client
+    .from("tours")
+    .select("id, name, status, band:bands(name), tour_dates(id, show_date)")
+    .order("start_date", { ascending: true, nullsFirst: false });
+  if (error) fail("tours", error);
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    status: string;
+    band: { name: string } | { name: string }[] | null;
+    tour_dates: { id: string; show_date: string }[];
+  }>).map((t) => {
+    const dates = t.tour_dates.slice().sort((a, b) => a.show_date.localeCompare(b.show_date));
+    const open = dates.find((d) => d.show_date >= today) ?? dates.at(-1) ?? null;
+    return {
+      id: t.id,
+      name: t.name,
+      bandName: first(t.band)?.name ?? "",
+      status: t.status,
+      firstDate: dates[0]?.show_date ?? null,
+      lastDate: dates.at(-1)?.show_date ?? null,
+      datesCount: dates.length,
+      openDateId: open?.id ?? null,
+    };
+  });
 }
 
 export function createSupabaseTourRepository(client: SupabaseClient, scope: TourScope): TourRepository {
@@ -107,12 +153,12 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
     const [refs, venueDocs] = await Promise.all([
       client
         .from("tour_date_document_refs")
-        .select("seen_version_id, document:documents(title, current_version_id, document_type:document_types(label))")
+        .select(`seen_version_id, document:documents(${DOC_COLUMNS})`)
         .eq("tour_date_id", dateId),
       venueId
         ? client
             .from("documents")
-            .select("title, current_version_id, document_type:document_types(label)")
+            .select(DOC_COLUMNS)
             .eq("owner_type", "venue")
             .eq("owner_id", venueId)
         : Promise.resolve({ data: [], error: null }),
@@ -120,13 +166,25 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
     if (refs.error) fail("tour_date_document_refs", refs.error);
     if (venueDocs.error) fail("documents", venueDocs.error);
 
-    type Doc = { title: string; current_version_id: string | null; document_type: { label: string } | { label: string }[] | null };
-    const toFile = (doc: Doc, seen?: string | null): DocFile => ({
-      name: doc.title,
-      kind: "pdf",
-      meta: first(doc.document_type)?.label ?? "",
-      status: docStatus(doc.current_version_id, seen),
-    });
+    type One<T> = T | T[] | null;
+    type Doc = {
+      id: string;
+      title: string;
+      current_version_id: string | null;
+      document_type: One<{ label: string }>;
+      current_version: One<{ file_url: string; version_number: number }>;
+    };
+    const toFile = (doc: Doc, seen?: string | null): DocFile => {
+      const version = first(doc.current_version);
+      return {
+        documentId: doc.id,
+        url: version?.file_url,
+        name: doc.title,
+        kind: "pdf",
+        meta: [first(doc.document_type)?.label, version ? `v${version.version_number}` : null].filter(Boolean).join(" · "),
+        status: docStatus(doc.current_version_id, seen),
+      };
+    };
 
     return {
       docs: ((refs.data ?? []) as unknown as Array<{ seen_version_id: string | null; document: Doc | Doc[] | null }>)
@@ -156,7 +214,6 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
           venueDocs: [],
           dateNotes: [],
           venueNotes: [],
-          vehicles: [],
         })
       );
     },
@@ -170,7 +227,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       const date = dates.find((d) => d.id === dateId);
       if (!date) return null;
 
-      const [labor, rooms, notes, vehicles, docs] = await Promise.all([
+      const [labor, rooms, notes, docs] = await Promise.all([
         client.from("labor_calls").select("*, department:departments(name)").eq("tour_date_id", dateId),
         client.from("hotel_room_assignments").select("*").eq("tour_date_id", dateId),
         client
@@ -179,13 +236,11 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
           .eq("tour_id", tourId)
           .in("entity_type", ["tour_date", "venue"])
           .order("created_at", { ascending: false }),
-        client.from("tour_vehicles").select("*").eq("tour_id", tourId),
         fetchDocs(dateId, date.venue_id),
       ]);
       if (labor.error) fail("labor_calls", labor.error);
       if (rooms.error) fail("hotel_room_assignments", rooms.error);
       if (notes.error) fail("tour_notes", notes.error);
-      if (vehicles.error) fail("tour_vehicles", vehicles.error);
 
       const noteRows = (notes.data ?? []) as unknown as Array<Pick<TourNoteRow, "entity_type" | "entity_id"> & NoteWithAuthor>;
       const extras: DateExtras = {
@@ -197,7 +252,6 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
         venueNotes: noteRows
           .filter((n) => n.entity_type === "venue" && n.entity_id === date.venue_id)
           .map((n) => mapNote(n, date.venue?.name)),
-        vehicles: (vehicles.data ?? []) as TourVehicleRow[],
       };
       return mapTourDate(date, date.venue, positions(dates)(date), extras);
     },
@@ -286,6 +340,41 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
           n.entity_type === "venue" ? `Lugar · ${venueName.get(n.entity_id) ?? "venue"}` : `Fecha · ${dateLabel.get(n.entity_id) ?? ""}`;
         return { ...mapNote(n), origen };
       });
+    },
+
+    async getTourSummary() {
+      const tourId = await resolveTourId();
+      if (!tourId) return null;
+      const [tour, count] = await Promise.all([
+        client.from("tours").select("id, name, band:bands(name)").eq("id", tourId).maybeSingle(),
+        client.from("tour_dates").select("id", { count: "exact", head: true }).eq("tour_id", tourId),
+      ]);
+      if (tour.error) fail("tours", tour.error);
+      if (!tour.data) return null;
+      const band = first(tour.data.band as unknown as { name: string } | { name: string }[] | null)?.name;
+      const n = count.count ?? 0;
+      return {
+        id: tour.data.id as string,
+        name: tour.data.name as string,
+        bandLine: [band, `${n} ${n === 1 ? "fecha" : "fechas"}`].filter(Boolean).join(" · "),
+      };
+    },
+
+    async listVehicles() {
+      const tourId = await resolveTourId();
+      if (!tourId) return [];
+      const { data, error } = await client
+        .from("tour_vehicles")
+        .select("id, label, vehicle_type, load_order")
+        .eq("tour_id", tourId)
+        .order("load_order", { nullsFirst: false });
+      if (error) fail("tour_vehicles", error);
+      const TYPE: Record<string, string> = { truck: "Tráiler", bus: "Autobús", van: "Van" };
+      return ((data ?? []) as Array<Pick<TourVehicleRow, "id" | "label" | "vehicle_type">>).map((v) => ({
+        id: v.id,
+        label: v.label,
+        meta: v.vehicle_type ? TYPE[v.vehicle_type] : "",
+      }));
     },
 
     // Sin tabla todavía (ver header de repository.ts).

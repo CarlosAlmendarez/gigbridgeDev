@@ -70,13 +70,22 @@ export function fileTag(status: FileStatus): [string, string] {
 
 export function guestTag(status: GuestStatus): [string, string] {
   if (status === "confirmed") return ["tag tag-accent", "Confirmado"];
-  if (status === "denied") return ["tag tag-neutral", "Negado"];
+  if (status === "denied") return ["tag tag-neutral", "Rechazado"];
   return ["tag tag-accent-2", "Pendiente"];
 }
 
 export function mapFiles(list: DocFile[]) {
   return list.map((f) => {
     const [tagClass, tagLabel] = fileTag(f.status);
-    return { name: f.name, meta: f.meta, icon: fileIcon(f.kind), tagClass, tagLabel };
+    return {
+      name: f.name,
+      meta: f.meta,
+      icon: fileIcon(f.kind),
+      tagClass,
+      tagLabel,
+      status: f.status,
+      url: f.url,
+      documentId: f.documentId,
+    };
   });
 }

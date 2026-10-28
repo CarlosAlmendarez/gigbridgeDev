@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addDateNote, addGuestEntry, moveSetlistSong, type ActionResult } from "@gigbridge/data";
+import {
+  addDateNote,
+  addGuestEntry,
+  adoptCurrentDocumentVersion,
+  moveSetlistSong,
+  moveTourVehicle,
+  type ActionResult,
+} from "@gigbridge/data";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { tourDataSource } from "@/lib/tourRepository";
 
@@ -34,4 +41,12 @@ export async function moveSetlistAction(dateId: string, fromIndex: number, toInd
 
 export async function addDateNoteAction(dateId: string, target: "tour_date" | "venue", body: string) {
   return run(dateId, (client) => addDateNote(client, { tourDateId: dateId, target, body }));
+}
+
+export async function moveVehicleAction(dateId: string, fromIndex: number, toIndex: number) {
+  return run(dateId, (client) => moveTourVehicle(client, { tourDateId: dateId, fromIndex, toIndex }));
+}
+
+export async function adoptDocumentAction(dateId: string, documentId: string) {
+  return run(dateId, (client) => adoptCurrentDocumentVersion(client, { tourDateId: dateId, documentId }));
 }

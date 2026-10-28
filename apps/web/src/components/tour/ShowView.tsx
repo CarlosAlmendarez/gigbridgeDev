@@ -4,9 +4,11 @@ import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
 import { mapFiles } from "@gigbridge/data";
 import type { TourDate } from "@gigbridge/types";
+import { FileList, UploadButton } from "./FileList";
 
 export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: TourDate }) {
   const {
+    source,
     setlist,
     moveSetlist,
     extraShowFiles,
@@ -19,7 +21,9 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
 
   const showFiles = mapFiles(d.show.docs.concat(extraShowFiles[dateId] || []));
   const showNotes = (extraShowNotes[dateId] || []).concat(d.show.notes);
-  const docsMeta = `${d.show.docs.length + (extraShowFiles[dateId] || []).length} documentos`;
+  const docsCount = d.show.docs.length + (extraShowFiles[dateId] || []).length;
+  const docsMeta = docsCount === 1 ? "1 documento" : `${docsCount} documentos`;
+  const live = source === "supabase";
 
   return (
     <div className="pt-6">
@@ -37,6 +41,9 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
       <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(400px,1fr))] gap-8 pt-8">
         <div className="min-w-0">
           <h6 className="mb-3">Horarios de montaje</h6>
+          {d.show.montaje.length === 0 ? (
+            <p className="text-sm text-neutral-700">Sin horarios de montaje cargados para esta fecha.</p>
+          ) : (
           <table className="table">
             <thead>
               <tr>
@@ -55,12 +62,22 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
               ))}
             </tbody>
           </table>
+          )}
 
           <div className="pt-8">
-            <div className="flex items-baseline gap-2 mb-3">
+            <div className="flex items-baseline gap-2 mb-1">
               <h6 className="m-0 mr-auto">Setlist de la fecha</h6>
-              <span className="text-xs text-neutral-700">{setlist.length} canciones · editable</span>
+              <span className="text-xs text-neutral-700">
+                {setlist.length === 1 ? "1 canción" : `${setlist.length} canciones`}
+              </span>
             </div>
+            <p className="text-xs text-neutral-700 mb-3">
+              {setlist.length === 0
+                ? "Esta fecha todavía no tiene setlist."
+                : live
+                  ? "Usa las flechas para cambiar el orden. Solo los admins de la gira pueden hacerlo."
+                  : "Usa las flechas para cambiar el orden."}
+            </p>
             {setlist.map((s, i) => (
               <div key={i} className="flex items-center gap-2 py-[5px]">
                 <span className="w-[26px] tabular-nums text-[13px] text-neutral-700">{i + 1}</span>
@@ -71,17 +88,19 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
                 <span className="flex-none text-xs text-neutral-700 tabular-nums">{s.len}</span>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-icon flex-none w-9 h-9"
+                  className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
                   onClick={() => moveSetlist(i, -1)}
-                  aria-label="Subir"
+                  disabled={i === 0}
+                  aria-label={`Subir ${s.title}`}
                 >
                   <Icon name="arrow-up" size={15} />
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary btn-icon flex-none w-9 h-9"
+                  className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
                   onClick={() => moveSetlist(i, 1)}
-                  aria-label="Bajar"
+                  disabled={i === setlist.length - 1}
+                  aria-label={`Bajar ${s.title}`}
                 >
                   <Icon name="arrow-down" size={15} />
                 </button>
@@ -95,50 +114,41 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
             <h6 className="m-0 mr-auto">Documentos técnicos</h6>
             <span className="text-xs text-neutral-700">{docsMeta}</span>
           </div>
-          {showFiles.map((f, i) => (
-            <div key={i} className="flex items-center gap-3 py-2">
-              <Icon name={f.icon} size={23} className="text-accent-700" />
-              <div className="flex-1 min-w-0">
-                <div className="font-heading font-semibold text-[15px] break-words">{f.name}</div>
-                <div className="text-xs text-neutral-700">{f.meta}</div>
-              </div>
-              <span className={f.tagClass}>{f.tagLabel}</span>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="btn btn-secondary btn-block min-h-[42px]"
-            onClick={() => addShowFile(dateId)}
-          >
-            <Icon name="upload-simple" size={17} />
-            Subir documento del show
-          </button>
+          {showFiles.length === 0 && (
+            <p className="text-sm text-neutral-700 mb-2">Esta fecha todavía no tiene documentos ligados.</p>
+          )}
+          <FileList files={showFiles} />
+          <UploadButton live={live} label="Subir documento del show" onUpload={() => addShowFile(dateId)} />
 
           <div className="pt-6">
-            <h6 className="mb-2">Notas de este show</h6>
+            <h6 className="mb-1">Notas de este show</h6>
+            <p className="text-xs text-neutral-700 mb-2">Cambios de setlist, escenario o cueing que debe saber el equipo.</p>
+            {showNotes.length === 0 && <p className="text-sm text-neutral-700">Todavía no hay notas.</p>}
             {showNotes.map((n, i) => (
               <div key={i} className="py-2">
                 <div className="text-sm leading-[1.5]">{n.body}</div>
                 <div className="text-xs text-neutral-700 mt-0.5">{n.meta}</div>
               </div>
             ))}
-            <div className="flex gap-2 mt-2">
+            <form
+              className="flex gap-2 mt-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addShowNote(dateId);
+              }}
+            >
               <input
                 className="input min-h-[42px]"
                 type="text"
-                placeholder="Cambio de setlist, escenario, cueing…"
+                placeholder="Ej. el riser de batería queda en 40 cm"
+                aria-label="Nueva nota del show"
                 value={showNoteDraft}
                 onChange={(e) => setShowNoteDraft(e.target.value)}
               />
-              <button
-                type="button"
-                className="btn btn-primary min-h-[42px] min-w-[42px]"
-                onClick={() => addShowNote(dateId)}
-                aria-label="Agregar nota"
-              >
+              <button type="submit" className="btn btn-primary min-h-[42px] min-w-[42px]" aria-label="Agregar nota">
                 <Icon name="plus" size={17} />
               </button>
-            </div>
+            </form>
           </div>
         </div>
       </div>

@@ -189,7 +189,22 @@
     "bvw_selfVerified": "✓ Verified",
     "bvw_selfError": "Error verifying",
     "capacity": "Capacity",
-    "monitors": "Monitors"
+    "monitors": "Monitors",
+    "myToursTitle": "My tours",
+    "myToursDesc": "Tours where you are part of the crew. Open one to see the day sheet, the venue and the team.",
+    "openTour": "Open tour",
+    "tourDatesCount": "{count, plural, one {# date} other {# dates}}",
+    "noToursTitle": "You're not on any tour yet",
+    "noToursDesc": "When a tour admin adds you to their crew with this email, the tour will show up here.",
+    "demoTourTitle": "Sample tour",
+    "demoTourDesc": "Explore \"Norte 2026\" to get to know the tool. Changes you make there are not saved.",
+    "myVenueTitle": "My venue",
+    "myVenueDesc": "Your venue's technical file, photos and public profile.",
+    "openVenue": "Go to my venue",
+    "tourStatus_planning": "Planning",
+    "tourStatus_active": "On the road",
+    "tourStatus_completed": "Finished",
+    "tourStatus_cancelled": "Cancelled"
   },
   "settings": {
     "title": "Settings",
