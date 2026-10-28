@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { guestStatusUpdateSchema } from "@gigbridge/data";
+import { guestStatusUpdateSchema, setGuestEntryStatus } from "@gigbridge/data";
 import { getCurrentUser } from "@gigbridge/data/server";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { tourDataSource } from "@/lib/tourRepository";
@@ -66,21 +66,9 @@ export async function PATCH(
   const persisted = tourDataSource() === "supabase";
 
   if (persisted) {
-    const { data, error } = await supabase
-      .from("guest_list_entries")
-      .update({ status: parsed.data.status })
-      .eq("tour_date_id", parsed.data.tourDateId)
-      .eq("id", parsed.data.guestId)
-      .select("guest_name, status")
-      .maybeSingle();
-    // 22P02: id con formato inválido (no es uuid).
-    if (error?.code === "22P02") return NextResponse.json({ error: "Id de invitado o fecha inválido" }, { status: 400 });
-    if (error) {
-      console.error("No se pudo actualizar guest_list_entries", error);
-      return NextResponse.json({ error: "No se pudo actualizar el invitado" }, { status: 500 });
-    }
-    if (!data) return NextResponse.json({ error: "Invitado no encontrado" }, { status: 404 });
-    updatedGuest = { name: data.guest_name, status: data.status };
+    const result = await setGuestEntryStatus(supabase, parsed.data);
+    if (!result.ok) return NextResponse.json({ error: result.message }, { status: result.status });
+    updatedGuest = result.result;
   }
 
   if (process.env.RESEND_API_KEY && user.email) {

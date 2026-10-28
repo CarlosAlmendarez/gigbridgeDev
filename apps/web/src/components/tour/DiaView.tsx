@@ -330,7 +330,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
             <button
               type="button"
               className="btn btn-primary min-h-[42px] min-w-[42px]"
-              onClick={() => addNota(`Fecha · ${d.dow} ${d.day} sep`)}
+              onClick={() => addNota(`Fecha · ${d.dateline.replace(/ \d{4}$/, "")}`, dateId)}
               aria-label="Enviar nota"
             >
               <Icon name="paper-plane-tilt" size={17} />

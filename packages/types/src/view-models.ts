@@ -210,6 +210,8 @@ export interface ExternalContact {
 }
 
 export interface Guest {
+  /** Id de guest_list_entries con datos reales; el mock no lo tiene. */
+  id?: string;
   name: string;
   by: string;
   status: GuestStatus;

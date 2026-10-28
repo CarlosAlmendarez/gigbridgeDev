@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { GUESTS_SEED } from "@gigbridge/data";
-import type { GuestStatus } from "@gigbridge/types";
-import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { getTourRepository, tourDataSource } from "@/lib/tourRepository";
 
 /**
@@ -22,27 +19,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tou
   const repo = await getTourRepository({ tourId });
   const dates = await repo.listTourDates();
 
-  let guestStatuses: GuestStatus[];
-  if (tourDataSource() === "supabase") {
-    if (dates.length === 0) return NextResponse.json({ error: "Gira no encontrada" }, { status: 404 });
-    const supabase = await getSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("guest_list_entries")
-      .select("status")
-      .in(
-        "tour_date_id",
-        dates.map((d) => d.id)
-      );
-    if (error) {
-      console.error("No se pudo leer guest_list_entries", error);
-      return NextResponse.json({ error: "No se pudo calcular el resumen" }, { status: 500 });
-    }
-    guestStatuses = (data ?? []).map((g) => g.status as GuestStatus);
-  } else {
-    guestStatuses = Object.values(GUESTS_SEED)
-      .flat()
-      .map((g) => g.status);
+  if (tourDataSource() === "supabase" && dates.length === 0) {
+    return NextResponse.json({ error: "Gira no encontrada" }, { status: 404 });
   }
+  const guestStatuses = Object.values(await repo.listGuests())
+    .flat()
+    .map((g) => g.status);
 
   const showDates = dates.filter((d) => d.kind === "Show");
   const avgCompletion = dates.length ? Math.round(dates.reduce((sum, d) => sum + d.completion, 0) / dates.length) : 0;

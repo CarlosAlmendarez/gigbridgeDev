@@ -12,6 +12,7 @@ export * from "./storage";
 export * from "./tour/repository";
 export * from "./tour/formatting";
 export * from "./tour/permissions";
+export * from "./tour/mutations";
 export {
   TOUR_NAME,
   BAND_LINE,

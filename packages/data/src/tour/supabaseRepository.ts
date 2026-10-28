@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   DocFile,
+  Guest,
+  GuestStatus,
+  SetlistRow,
   HotelRoomAssignmentRow,
   LaborCallRow,
   TourDate,
@@ -9,7 +12,17 @@ import type {
   TourVehicleRow,
   VenueRow,
 } from "@gigbridge/types";
-import { docStatus, mapNote, mapRoster, mapTourDate, type DateExtras, type LaborCallWithDept, type RosterRow } from "./mappers";
+import {
+  docStatus,
+  mapNote,
+  mapRoster,
+  mapTourDate,
+  type DateExtras,
+  type LaborCallWithDept,
+  shortDateLabel,
+  type NoteWithAuthor,
+  type RosterRow,
+} from "./mappers";
 import type { TourRepository, TourScope } from "./repository";
 
 /**
@@ -162,7 +175,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
         client.from("hotel_room_assignments").select("*").eq("tour_date_id", dateId),
         client
           .from("tour_notes")
-          .select("entity_type, entity_id, body, created_at")
+          .select("entity_type, entity_id, body, created_at, author:profiles(display_name)")
           .eq("tour_id", tourId)
           .in("entity_type", ["tour_date", "venue"])
           .order("created_at", { ascending: false }),
@@ -174,7 +187,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       if (notes.error) fail("tour_notes", notes.error);
       if (vehicles.error) fail("tour_vehicles", vehicles.error);
 
-      const noteRows = (notes.data ?? []) as Array<Pick<TourNoteRow, "entity_type" | "entity_id" | "body" | "created_at">>;
+      const noteRows = (notes.data ?? []) as unknown as Array<Pick<TourNoteRow, "entity_type" | "entity_id"> & NoteWithAuthor>;
       const extras: DateExtras = {
         laborCalls: (labor.data ?? []) as LaborCallWithDept[],
         setlistSongs: first(date.setlists)?.songs.length ?? null,
@@ -208,6 +221,71 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       if (crew.error) fail("tour_crew", crew.error);
       if (rooms.error) fail("hotel_room_assignments", rooms.error);
       return mapRoster((crew.data ?? []) as unknown as RosterRow[], (rooms.data ?? []) as HotelRoomAssignmentRow[]);
+    },
+
+    async listGuests() {
+      const tourId = await resolveTourId();
+      if (!tourId) return {};
+      const { data, error } = await client
+        .from("guest_list_entries")
+        .select("id, tour_date_id, guest_name, status, created_at, tour_date:tour_dates!inner(tour_id), author:profiles(display_name)")
+        .eq("tour_date.tour_id", tourId)
+        .order("created_at");
+      if (error) fail("guest_list_entries", error);
+
+      const byDate: Record<string, Guest[]> = {};
+      for (const g of (data ?? []) as unknown as Array<{
+        id: string;
+        tour_date_id: string;
+        guest_name: string;
+        status: GuestStatus;
+        author: { display_name: string } | { display_name: string }[] | null;
+      }>) {
+        const author = first(g.author)?.display_name;
+        (byDate[g.tour_date_id] ??= []).push({
+          id: g.id,
+          name: g.guest_name,
+          by: author ? `Agregado por ${author}` : "Agregado por el equipo",
+          status: g.status,
+        });
+      }
+      return byDate;
+    },
+
+    async getSetlist(dateId) {
+      if (!UUID_RE.test(dateId)) return [];
+      const { data, error } = await client.from("setlists").select("songs").eq("tour_date_id", dateId).maybeSingle();
+      if (error) fail("setlists", error);
+      return ((data?.songs ?? []) as SetlistRow["songs"])
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((s) => ({ title: s.title, len: s.len ?? "", cue: s.cue ?? "" }));
+    },
+
+    async listTourNotes() {
+      const tourId = await resolveTourId();
+      if (!tourId) return [];
+      const [notes, dates] = await Promise.all([
+        client
+          .from("tour_notes")
+          .select("entity_type, entity_id, body, created_at, author:profiles(display_name)")
+          .eq("tour_id", tourId)
+          .in("entity_type", ["tour_date", "venue"])
+          .order("created_at", { ascending: false }),
+        client.from("tour_dates").select("id, show_date, venue_id, venue:venues(name)").eq("tour_id", tourId),
+      ]);
+      if (notes.error) fail("tour_notes", notes.error);
+      if (dates.error) fail("tour_dates", dates.error);
+
+      const dateLabel = new Map((dates.data ?? []).map((d) => [d.id as string, shortDateLabel(d.show_date as string)]));
+      const venueName = new Map(
+        (dates.data ?? []).filter((d) => d.venue_id).map((d) => [d.venue_id as string, first(d.venue as unknown as { name: string } | { name: string }[] | null)?.name ?? ""])
+      );
+      return ((notes.data ?? []) as unknown as Array<Pick<TourNoteRow, "entity_type" | "entity_id"> & NoteWithAuthor>).map((n) => {
+        const origen =
+          n.entity_type === "venue" ? `Lugar · ${venueName.get(n.entity_id) ?? "venue"}` : `Fecha · ${dateLabel.get(n.entity_id) ?? ""}`;
+        return { ...mapNote(n), origen };
+      });
     },
 
     // Sin tabla todavía (ver header de repository.ts).

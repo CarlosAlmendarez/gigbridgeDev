@@ -1,6 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ExternalContact, Provider, RosterPerson, TourDate, Vacancy } from "@gigbridge/types";
-import { DATES, EXTERNAL_CONTACTS, PROVIDERS, ROSTER, VACANCIES } from "./mockData";
+import type { ExternalContact, Guest, Provider, RosterPerson, SetlistSong, TourDate, Vacancy } from "@gigbridge/types";
+import {
+  DATES,
+  DEFAULT_NOTAS,
+  DEFAULT_SETLIST,
+  EXTERNAL_CONTACTS,
+  GUESTS_SEED,
+  PROVIDERS,
+  ROSTER,
+  VACANCIES,
+  type NotaEntry,
+} from "./mockData";
 import { createSupabaseTourRepository, findOpeningTourDateId } from "./supabaseRepository";
 
 /**
@@ -15,9 +25,10 @@ import { createSupabaseTourRepository, findOpeningTourDateId } from "./supabaseR
  *
  * Secciones de la UI que todavía NO tienen tabla y en "supabase" salen
  * vacías: proveedores (club), contactos externos y vacantes. Tablas que
- * existen pero aún no alimentan la UI: guest_list_entries, setlists,
- * reminders y tour_notes se siguen sembrando desde mockData en
- * apps/web/src/context/TourUIContext.tsx.
+ * existen pero aún no alimentan la UI: reminders y tour_vehicles como lista
+ * editable (hitos, vehículos y recordatorios siguen siendo estado local de
+ * apps/web/src/context/TourUIContext.tsx). Las escrituras viven en
+ * mutations.ts.
  */
 
 export type TourDataSource = "mock" | "supabase";
@@ -34,6 +45,11 @@ export interface TourRepository {
   listVacancies(): Promise<Vacancy[]>;
   listProviders(): Promise<Provider[]>;
   listExternalContacts(): Promise<ExternalContact[]>;
+  /** Invitados de todas las fechas de la gira, por id de fecha. */
+  listGuests(): Promise<Record<string, Guest[]>>;
+  getSetlist(dateId: string): Promise<SetlistSong[]>;
+  /** Notas de toda la gira (fechas y venues), la más reciente primero. */
+  listTourNotes(): Promise<NotaEntry[]>;
 }
 
 export function createMockTourRepository(): TourRepository {
@@ -44,6 +60,10 @@ export function createMockTourRepository(): TourRepository {
     listVacancies: async () => VACANCIES,
     listProviders: async () => PROVIDERS,
     listExternalContacts: async () => EXTERNAL_CONTACTS,
+    listGuests: async () => GUESTS_SEED,
+    // El prototipo tiene un solo setlist para todas las fechas.
+    getSetlist: async () => DEFAULT_SETLIST,
+    listTourNotes: async () => DEFAULT_NOTAS,
   };
 }
 

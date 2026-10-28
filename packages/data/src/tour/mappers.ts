@@ -40,6 +40,12 @@ function parseDay(isoDate: string) {
   return { dow: DOW[d.getUTCDay()], day: String(d.getUTCDate()), mon: MON[d.getUTCMonth()], year: d.getUTCFullYear() };
 }
 
+/** "Sáb 14 nov": la fecha corta que usan los orígenes de nota y los kickers. */
+export function shortDateLabel(isoDate: string): string {
+  const { dow, day, mon } = parseDay(isoDate);
+  return `${dow} ${day} ${mon}`;
+}
+
 export function hhmm(time: string | null | undefined): string {
   return time ? time.slice(0, 5) : "";
 }
@@ -222,8 +228,15 @@ function venueSpecs(v: VenueRow): { k: string; v: string }[] {
   return specs.filter((s): s is [string, string] => Boolean(s[1])).map(([k, val]) => ({ k, v: val }));
 }
 
-export function mapNote(row: Pick<TourNoteRow, "body" | "created_at">, origen?: string): NoteEntry {
-  return { body: row.body, meta: row.created_at.slice(0, 10), ...(origen ? { origen } : {}) };
+export type NoteWithAuthor = Pick<TourNoteRow, "body" | "created_at"> & {
+  author?: { display_name: string } | { display_name: string }[] | null;
+};
+
+/** meta = "Autor · AAAA-MM-DD", como el "Phil G. · hace 2 h" del prototipo pero sin tiempo relativo. */
+export function mapNote(row: NoteWithAuthor, origen?: string): NoteEntry {
+  const author = Array.isArray(row.author) ? row.author[0] : row.author;
+  const meta = [author?.display_name, row.created_at.slice(0, 10)].filter(Boolean).join(" · ");
+  return { body: row.body, meta, ...(origen ? { origen } : {}) };
 }
 
 /** Referencia en vivo (0007): visto ≠ vigente → "revisar"; sin versión subida → "nuevo". */

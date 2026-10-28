@@ -1,16 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import {
-  DEFAULT_HITOS,
-  DEFAULT_NOTAS,
-  DEFAULT_REMINDERS,
-  DEFAULT_SETLIST,
-  DEFAULT_VEHICLES,
-  GUESTS_SEED,
-  type NotaEntry,
-} from "@gigbridge/data";
+import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { DEFAULT_HITOS, DEFAULT_REMINDERS, DEFAULT_VEHICLES, type NotaEntry, type TourDataSource } from "@gigbridge/data";
 import { GUEST_STATES } from "@gigbridge/config";
+import { addDateNoteAction, addGuestAction, moveSetlistAction } from "@/lib/actions/tour";
 import type {
   DocFile,
   GroupModeId,
@@ -49,9 +43,25 @@ interface TourUIState {
   groupOpen: string | null;
   crewSel: string | null;
   adopted: boolean | null;
+  syncError: string | null;
 }
 
-function initialState(): TourUIState {
+/**
+ * Datos que el layout lee del repositorio (mock o Supabase). Con la gira
+ * mock son solo el estado inicial y se editan en memoria; con Supabase son
+ * la fuente de verdad: las acciones escriben y la página se vuelve a
+ * renderizar con datos nuevos, así que no hay copia local que sincronizar.
+ */
+export interface TourServerData {
+  source: TourDataSource;
+  /** Fecha del layout: el setlist es de esta fecha. */
+  dateId: string;
+  guestsByDate: Record<string, Guest[]>;
+  setlist: SetlistSong[];
+  notas: NotaEntry[];
+}
+
+function initialState(data: TourServerData): TourUIState {
   return {
     night: false,
     lens: "Todos",
@@ -61,12 +71,12 @@ function initialState(): TourUIState {
     bucket: "recinto",
     filtro: "Todos",
     hitos: DEFAULT_HITOS.map((h) => ({ ...h })),
-    setlist: DEFAULT_SETLIST.map((s) => ({ ...s })),
+    setlist: data.setlist.map((s) => ({ ...s })),
     vehicles: DEFAULT_VEHICLES.map((v) => ({ ...v })),
     reminders: DEFAULT_REMINDERS.map((r) => ({ ...r })),
-    notas: DEFAULT_NOTAS.map((n) => ({ ...n })),
+    notas: data.notas.map((n) => ({ ...n })),
     guestsByDate: Object.fromEntries(
-      Object.entries(GUESTS_SEED).map(([k, v]) => [k, v.map((g) => ({ ...g }))])
+      Object.entries(data.guestsByDate).map(([k, v]) => [k, v.map((g) => ({ ...g }))])
     ),
     extraVenueFiles: {},
     extraVenueNotes: {},
@@ -79,6 +89,7 @@ function initialState(): TourUIState {
     groupOpen: "C",
     crewSel: null,
     adopted: null,
+    syncError: null,
   };
 }
 
@@ -100,7 +111,8 @@ interface TourUIContextValue extends TourUIState {
   dismissReminder: (index: number) => void;
   addReminder: (r: Reminder) => void;
   setNotaDraft: (v: string) => void;
-  addNota: (origen: string) => void;
+  /** `dateId` es la fecha a la que se cuelga la nota cuando se guarda en Supabase. */
+  addNota: (origen: string, dateId: string) => void;
   setVenueNoteDraft: (v: string) => void;
   addVenueNote: (dateId: string) => void;
   addVenueFile: (dateId: string) => void;
@@ -114,8 +126,31 @@ interface TourUIContextValue extends TourUIState {
 
 const TourUIContext = createContext<TourUIContextValue | null>(null);
 
-export function TourUIProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<TourUIState>(initialState);
+export function TourUIProvider({ children, data }: { children: ReactNode; data: TourServerData }) {
+  const [state, setState] = useState<TourUIState>(() => initialState(data));
+  const [, startTransition] = useTransition();
+  const router = useRouter();
+  const live = data.source === "supabase";
+
+  /**
+   * Escritura contra Supabase: corre la acción en una transición, limpia el
+   * borrador si salió bien y muestra el mensaje si la RLS o la validación la
+   * rechazaron. La Server Action ya revalida la página; `refresh` es para
+   * escrituras que van por fetch (el PATCH REST de invitados).
+   */
+  function sync(task: () => Promise<{ ok: boolean; message?: string }>, onOk?: Partial<TourUIState>, refresh = false) {
+    startTransition(async () => {
+      try {
+        const result = await task();
+        if (!result.ok) return setState((st) => ({ ...st, syncError: result.message ?? "No se pudo guardar." }));
+        setState((st) => ({ ...st, ...onOk, syncError: null }));
+        if (refresh) router.refresh();
+      } catch (err) {
+        console.error(err);
+        setState((st) => ({ ...st, syncError: "Sin conexión: el cambio no se guardó." }));
+      }
+    });
+  }
 
   useEffect(() => {
     const root = document.documentElement;
@@ -137,6 +172,7 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
 
   const value: TourUIContextValue = {
     ...state,
+    ...(live ? { guestsByDate: data.guestsByDate, setlist: data.setlist, notas: data.notas } : {}),
     toggleNight: () => setState((st) => ({ ...st, night: !st.night })),
     setLens: (lens) =>
       setState((st) => ({
@@ -158,14 +194,24 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
         ...st,
         hitos: st.hitos.map((h) => (h.id === id ? { ...h, done: !h.done } : h)),
       })),
-    moveSetlist: (index, dir) => move<SetlistSong>("setlist", index, dir),
+    moveSetlist: (index, dir) => {
+      if (!live) return move<SetlistSong>("setlist", index, dir);
+      const to = index + dir;
+      if (to < 0 || to >= data.setlist.length) return;
+      sync(() => moveSetlistAction(data.dateId, index, to));
+    },
     moveVehicle: (index, dir) => move<VehicleLoad>("vehicles", index, dir),
     adoptRider: () => setState((st) => ({ ...st, adopted: true })),
     dismissReminder: (index) =>
       setState((st) => ({ ...st, reminders: st.reminders.filter((_, i) => i !== index) })),
     addReminder: (r) => setState((st) => ({ ...st, reminders: st.reminders.concat([r]) })),
     setNotaDraft: (notaDraft) => setState((st) => ({ ...st, notaDraft })),
-    addNota: (origen) =>
+    addNota: (origen, dateId) => {
+      if (live) {
+        const body = state.notaDraft.trim();
+        if (body) sync(() => addDateNoteAction(dateId, "tour_date", body), { notaDraft: "" });
+        return;
+      }
       setState((st) => {
         const body = st.notaDraft.trim();
         if (!body) return st;
@@ -174,9 +220,15 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
           notaDraft: "",
           notas: [{ origen, body, meta: "Tú · ahora · 11 del crew notificados" }].concat(st.notas),
         };
-      }),
+      });
+    },
     setVenueNoteDraft: (venueNoteDraft) => setState((st) => ({ ...st, venueNoteDraft })),
-    addVenueNote: (dateId) =>
+    addVenueNote: (dateId) => {
+      if (live) {
+        const body = state.venueNoteDraft.trim();
+        if (body) sync(() => addDateNoteAction(dateId, "venue", body), { venueNoteDraft: "" });
+        return;
+      }
       setState((st) => {
         const body = st.venueNoteDraft.trim();
         if (!body) return st;
@@ -188,7 +240,8 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
             [dateId]: [{ body, meta: "Tú · ahora" }].concat(st.extraVenueNotes[dateId] || []),
           },
         };
-      }),
+      });
+    },
     addVenueFile: (dateId) =>
       setState((st) => ({
         ...st,
@@ -200,7 +253,12 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
         },
       })),
     setShowNoteDraft: (showNoteDraft) => setState((st) => ({ ...st, showNoteDraft })),
-    addShowNote: (dateId) =>
+    addShowNote: (dateId) => {
+      if (live) {
+        const body = state.showNoteDraft.trim();
+        if (body) sync(() => addDateNoteAction(dateId, "tour_date", body), { showNoteDraft: "" });
+        return;
+      }
       setState((st) => {
         const body = st.showNoteDraft.trim();
         if (!body) return st;
@@ -214,7 +272,8 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
             ),
           },
         };
-      }),
+      });
+    },
     addShowFile: (dateId) =>
       setState((st) => ({
         ...st,
@@ -226,7 +285,12 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
         },
       })),
     setGuestDraft: (guestDraft) => setState((st) => ({ ...st, guestDraft })),
-    addGuest: (dateId) =>
+    addGuest: (dateId) => {
+      if (live) {
+        const name = state.guestDraft.trim();
+        if (name) sync(() => addGuestAction(dateId, name), { guestDraft: "" });
+        return;
+      }
       setState((st) => {
         const name = st.guestDraft.trim();
         if (!name) return st;
@@ -240,8 +304,34 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
             ]),
           },
         };
-      }),
-    cycleGuestStatus: (dateId, index) =>
+      });
+    },
+    cycleGuestStatus: (dateId, index) => {
+      if (live) {
+        const guest = data.guestsByDate[dateId]?.[index];
+        if (!guest?.id) return;
+        const status = GUEST_STATES[(GUEST_STATES.indexOf(guest.status) + 1) % 3];
+        // Por el endpoint REST (no Server Action) porque además manda el
+        // correo con Resend — ver su route.ts.
+        sync(
+          async () => {
+            const res = await fetch(`/api/v1/tour-dates/${dateId}/guests/${guest.id}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status }),
+            });
+            if (res.ok) return { ok: true };
+            const { error } = (await res.json().catch(() => ({}))) as { error?: unknown };
+            return {
+              ok: false,
+              message: res.status === 404 ? "Solo un admin de la gira puede cambiar el status." : typeof error === "string" ? error : "No se pudo cambiar el status.",
+            };
+          },
+          undefined,
+          true
+        );
+        return;
+      }
       setState((st) => ({
         ...st,
         guestsByDate: {
@@ -252,10 +342,26 @@ export function TourUIProvider({ children }: { children: ReactNode }) {
               : g
           ),
         },
-      })),
+      }));
+    },
   };
 
-  return <TourUIContext.Provider value={value}>{children}</TourUIContext.Provider>;
+  return (
+    <TourUIContext.Provider value={value}>
+      {children}
+      {state.syncError && (
+        <div
+          role="alert"
+          className="fixed bottom-4 left-4 right-4 md:left-auto md:max-w-sm z-50 tag tag-accent-2 !flex items-center justify-between gap-3 !px-4 !py-3 shadow-lg"
+        >
+          <span>{state.syncError}</span>
+          <button type="button" className="font-semibold" onClick={() => setState((st) => ({ ...st, syncError: null }))}>
+            Cerrar
+          </button>
+        </div>
+      )}
+    </TourUIContext.Provider>
+  );
 }
 
 export function useTourUI() {
