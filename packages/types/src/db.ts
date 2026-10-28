@@ -333,6 +333,8 @@ export interface VenueRow {
   currency: string;
   genres_hosted: string[];
   completeness_score: number;
+  /** 0012: zona IANA con la que se interpretan los horarios de toda fecha en este venue. */
+  timezone: string;
   created_at: string;
   updated_at: string;
 }
@@ -588,6 +590,11 @@ export interface TourDateRow {
   advance_date: string | null;
   sequence_order: number | null;
   notes: string | null;
+  /**
+   * 0012: solo para días sin venue o excepciones. Zona efectiva =
+   * `timezone ?? venue.timezone` (RPC `tour_date_timezone`).
+   */
+  timezone: string | null;
   created_at: string;
   updated_at: string;
 }
