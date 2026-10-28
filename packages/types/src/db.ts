@@ -3,7 +3,7 @@
  *
  * A diferencia de la versión anterior de este archivo, esto YA NO es un
  * contrato provisional: refleja 1:1 las migraciones en
- * `gigbridgeDev/supabase/migrations/` (0001–0007), que a su vez portan el
+ * `gigbridgeDev/supabase/migrations/`, que a su vez portan el
  * esquema real de la v1 (`GigBridge/gigbridge/supabase/schema_master.sql`,
  * verificado 2026-09-13) más el módulo de gira reestructurado con el venue
  * como núcleo, según `GigBridge — Análisis y plan de desarrollo de la nueva
