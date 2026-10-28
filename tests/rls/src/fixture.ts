@@ -161,8 +161,17 @@ export async function createFixture(): Promise<Fixture> {
       admin
         .from("tour_dates")
         .insert([
-          { tour_id: tour.id, venue_id: venue.id, show_date: "2026-11-20", doors_time: "20:00", show_time: "21:30" },
-          { tour_id: tour.id, venue_id: null, show_date: "2026-11-21", timezone: "America/Denver" },
+          {
+            tour_id: tour.id,
+            venue_id: venue.id,
+            show_date: "2026-11-20",
+            status: "confirmed",
+            doors_time: "20:00",
+            show_time: "21:30",
+          },
+          // Insert múltiple: PostgREST manda null (no el default) en columnas
+          // que falten en alguna fila, así que status va explícito en ambas.
+          { tour_id: tour.id, venue_id: null, show_date: "2026-11-21", status: "confirmed", timezone: "America/Denver" },
         ])
         .select("id")
     );
