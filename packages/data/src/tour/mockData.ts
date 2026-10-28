@@ -2,12 +2,11 @@ import type { Guest, Provider, RosterPerson, TourDate, Vacancy, ExternalContact 
 
 /**
  * Set de datos de ejemplo para la gira "Norte 2026" de Las Bestias del
- * Valle — el mismo contenido del prototipo de Claude Design. Vive aquí (no
- * en apps/web) porque implementa la MISMA forma que tendrán las respuestas
- * reales de Supabase una vez existan las migraciones del módulo de gira:
- * cuando eso pase, sólo hay que reescribir tour/repository.ts para que
- * consulte Supabase en vez de este archivo — nada en apps/web debería
- * cambiar.
+ * Valle — el mismo contenido del prototipo de Claude Design. Es la fuente
+ * "mock" de tour/repository.ts (default con TOUR_DATA_SOURCE sin definir) y
+ * tiene la MISMA forma que produce supabaseRepository.ts desde las tablas
+ * reales. Las constantes DEFAULT_* / GUESTS_SEED todavía siembran el estado
+ * de cliente de TourUIContext en ambos modos.
  */
 
 export const TOUR_NAME = "Norte 2026";

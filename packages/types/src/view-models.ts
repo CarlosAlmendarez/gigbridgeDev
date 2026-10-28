@@ -1,9 +1,9 @@
 /**
  * "View models": las formas agregadas/planas que consume la UI (web y, más
  * adelante, la app nativa). @gigbridge/data se encarga de mapear las filas
- * normalizadas de Supabase (ver db.ts) a estas formas — hoy las produce a
- * partir del set de datos mock mientras no existan las migraciones reales,
- * pero la forma no debería cambiar cuando se conecten las tablas de verdad.
+ * normalizadas de Supabase (ver db.ts) a estas formas (tour/mappers.ts), o
+ * las sirve tal cual desde el set mock (tour/mockData.ts). Ambas fuentes
+ * deben producir exactamente esta forma.
  */
 
 export type DateKind = "Viaje" | "Show" | "Hold";

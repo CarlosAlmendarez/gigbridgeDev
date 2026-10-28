@@ -11,10 +11,12 @@ import { detectLocale, LOCALE_COOKIE } from "@gigbridge/config";
  * existen: /dashboard requiere sesión; las rutas de auth redirigen a
  * /dashboard si ya hay sesión; /auth/setup redirige a /dashboard si el
  * usuario ya tiene profile (no debe volver a pasar por el wizard).
- * /tour/* sigue sin protección — no forma parte de este alcance todavía.
+ * /tour/* exige sesión solo con TOUR_DATA_SOURCE=supabase: con datos reales
+ * la RLS sin sesión devolvería todo vacío. Con la gira mock sigue abierta
+ * para demos.
  */
 
-const PROTECTED_ROUTES = ["/dashboard"];
+const PROTECTED_ROUTES = process.env.TOUR_DATA_SOURCE === "supabase" ? ["/dashboard", "/tour"] : ["/dashboard"];
 const AUTH_ROUTES = ["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/check-email"];
 
 export async function proxy(request: NextRequest) {

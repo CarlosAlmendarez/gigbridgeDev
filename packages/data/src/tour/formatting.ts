@@ -1,6 +1,6 @@
 import { DEPT_ORDER, PARTIES, TEAMS, TEAM_ORDER } from "@gigbridge/config";
 import type { DocFile, FileStatus, GroupModeId, GuestStatus, PartyKey, RosterPerson, Vacancy } from "@gigbridge/types";
-import { fileIcon, ROSTER } from "./mockData";
+import { fileIcon } from "./mockData";
 
 /**
  * Funciones puras de agregación/formato sobre datos de gira — no dependen
@@ -43,8 +43,8 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
       name: d,
       icon: "squares-four",
       subtitle: "Departamento del catálogo",
-      people: roster.filter((p) => TEAMS[p.team].dept === d),
-      vacancies: vacancies.filter((v) => TEAMS[v.team].dept === d),
+      people: roster.filter((p) => TEAMS[p.team]?.dept === d),
+      vacancies: vacancies.filter((v) => TEAMS[v.team]?.dept === d),
     })).filter((g) => g.people.length || g.vacancies.length);
   }
   return [
@@ -53,7 +53,9 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
       name: "Cadena de mando",
       icon: "tree-structure",
       subtitle: "Del Tour Manager hacia abajo, según reports_to",
-      people: roster.slice().sort((a, b) => ROSTER.indexOf(a) - ROSTER.indexOf(b)),
+      // El repositorio (mock y Supabase) ya entrega el roster en orden de
+      // cadena de mando; aquí solo se respeta.
+      people: roster.slice(),
       vacancies,
     },
   ];

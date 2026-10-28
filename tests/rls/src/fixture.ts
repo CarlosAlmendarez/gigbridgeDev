@@ -142,6 +142,8 @@ export async function createFixture(): Promise<Fixture> {
           name: `RLS ${run} Venue`,
           city: "Phoenix",
           timezone: "America/Phoenix",
+          // No público a propósito: el crew debe leerlo por ser de su gira (0014).
+          is_discoverable: false,
         })
         .select("id")
         .single()

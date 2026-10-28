@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { GUESTS_SEED, listTourDates } from "@gigbridge/data";
+import { GUESTS_SEED } from "@gigbridge/data";
+import type { GuestStatus } from "@gigbridge/types";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
+import { getTourRepository, tourDataSource } from "@/lib/tourRepository";
 
 /**
  * GET /api/v1/tours/:tourId/dashboard-summary
@@ -8,26 +11,41 @@ import { GUESTS_SEED, listTourDates } from "@gigbridge/data";
  * de varias fechas (completion promedio, invitados pendientes de toda la
  * gira, próxima fecha) — es más barato calcularlo una vez en servidor que
  * mandarle a cada cliente (web o nativo) todas las fechas y que cada quien
- * recalcule lo mismo. Hoy corre sobre el repositorio mock; cuando existan
- * las tablas reales, la única línea que cambia es la query de agregación
- * (`select avg(...), count(...) ...`), no el shape de la respuesta.
+ * recalcule lo mismo.
  *
- * `tourId` se recibe pero todavía no se usa para filtrar: el set de datos
- * mock modela una sola gira ("Norte 2026"). Se deja en la ruta porque el
- * endpoint real sí necesita filtrar por gira.
+ * Con TOUR_DATA_SOURCE=supabase lee con la sesión del usuario: si no es
+ * miembro de la gira, la RLS deja todo vacío y responde 404. Con la gira
+ * mock `tourId` se ignora (solo existe "Norte 2026").
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ tourId: string }> }) {
   const { tourId } = await params;
-  const dates = await listTourDates();
+  const repo = await getTourRepository({ tourId });
+  const dates = await repo.listTourDates();
+
+  let guestStatuses: GuestStatus[];
+  if (tourDataSource() === "supabase") {
+    if (dates.length === 0) return NextResponse.json({ error: "Gira no encontrada" }, { status: 404 });
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("guest_list_entries")
+      .select("status")
+      .in(
+        "tour_date_id",
+        dates.map((d) => d.id)
+      );
+    if (error) {
+      console.error("No se pudo leer guest_list_entries", error);
+      return NextResponse.json({ error: "No se pudo calcular el resumen" }, { status: 500 });
+    }
+    guestStatuses = (data ?? []).map((g) => g.status as GuestStatus);
+  } else {
+    guestStatuses = Object.values(GUESTS_SEED)
+      .flat()
+      .map((g) => g.status);
+  }
 
   const showDates = dates.filter((d) => d.kind === "Show");
-  const avgCompletion = Math.round(dates.reduce((sum, d) => sum + d.completion, 0) / dates.length);
-  const totalPendingGuests = Object.values(GUESTS_SEED)
-    .flat()
-    .filter((g) => g.status === "pending").length;
-  const totalConfirmedGuests = Object.values(GUESTS_SEED)
-    .flat()
-    .filter((g) => g.status === "confirmed").length;
+  const avgCompletion = dates.length ? Math.round(dates.reduce((sum, d) => sum + d.completion, 0) / dates.length) : 0;
   const nextShow = showDates.find((d) => d.completion < 100) ?? showDates[0] ?? null;
 
   return NextResponse.json({
@@ -35,7 +53,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tou
     totalDates: dates.length,
     totalShows: showDates.length,
     averageCompletion: avgCompletion,
-    guests: { pending: totalPendingGuests, confirmed: totalConfirmedGuests },
+    guests: {
+      pending: guestStatuses.filter((s) => s === "pending").length,
+      confirmed: guestStatuses.filter((s) => s === "confirmed").length,
+    },
     nextShow: nextShow && {
       id: nextShow.id,
       title: nextShow.title,

@@ -121,6 +121,9 @@ importers:
 
   tests/rls:
     dependencies:
+      '@gigbridge/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@gigbridge/types':
         specifier: workspace:*
         version: link:../../packages/types

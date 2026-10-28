@@ -24,13 +24,13 @@ Run from the repo root unless noted:
 - `pnpm lint` — lint every workspace package (`pnpm -r lint`)
 - `pnpm typecheck` — typecheck every workspace package (`pnpm -r typecheck`)
 - Target a single package: `pnpm --filter @gigbridge/data typecheck`, `pnpm --filter @gigbridge/web lint`, etc.
-- No test runner is configured in this repo (no vitest/jest/Playwright) — don't assume `pnpm test` exists.
+- `pnpm test:rls` — RLS-per-role and tour-repository tests (`tests/rls`, vitest). They run against the **live dev project** using `apps/web/.env.local`: they create real users/rows with the secret key and delete them afterwards, and refuse to start if the URL is the v1 production project. Migrations must be applied first. There is no unit-test runner for the web app and no Playwright yet.
 
-Env setup: copy `apps/web/.env.local.example` to `apps/web/.env.local`. It needs the Supabase URL/publishable key/secret key of the **dev** project above (`irmjtifbhtabxghiikbf` — do not copy v1's `.env.local`, that one points at production), plus `RESEND_API_KEY`/`FROM_EMAIL` for transactional email.
+Env setup: copy `apps/web/.env.local.example` to `apps/web/.env.local`. It needs the Supabase URL/publishable key/secret key of the **dev** project above (`irmjtifbhtabxghiikbf` — do not copy v1's `.env.local`, that one points at production), plus `RESEND_API_KEY`/`FROM_EMAIL` for transactional email, and `TOUR_DATA_SOURCE` (`mock` default, or `supabase`).
 
 ## Workspace layout
 
-`pnpm-workspace.yaml` covers `apps/*` and `packages/*`. Dependency direction is one-way:
+`pnpm-workspace.yaml` covers `apps/*`, `packages/*` and `tests/*` (test-only packages, never imported by apps). Dependency direction is one-way:
 
 ```
 @gigbridge/types  (no deps)
@@ -63,16 +63,18 @@ The shared data-access layer, split into two entry points on purpose:
 Never import from `@gigbridge/data/server` in a client component; import the plain package entry instead.
 
 Key files:
-- `tour/repository.ts` — currently reads from `tour/mockData.ts` (a full mock "Norte 2026" tour) because the real `tour_*` tables don't exist yet. Function signatures are written to match what the eventual Supabase-backed implementation will return, so callers in `apps/web` (and later the native app) shouldn't need to change when it's rewired.
-- `tour/permissions.ts` — deliberately duplicates in application code a rule that will *also* exist as a Postgres RLS policy (who can see whose hotel room, via `visibility_grants`/`tour_crew`). It has to live here too because service-role code paths bypass RLS and need to re-check manually, and the UI needs the reason text, not just a hidden field.
+- `tour/repository.ts` — the `TourRepository` interface and `createTourRepository(source, { client, scope })`. Two sources: `"mock"` (`tour/mockData.ts`, the "Norte 2026" demo tour) and `"supabase"` (`tour/supabaseRepository.ts`, real tables). The Supabase source reads with whatever client it is given and does no permission checks of its own — pass the session client so RLS filters, never the service-role client. Scope is `{ tourId }` or `{ dateId }` (web routes only carry the date).
+- `tour/mappers.ts` — pure row → view-model mapping used by the Supabase source. View-model fields with no backing table yet come out empty rather than invented.
+- `tour/permissions.ts` — duplicates in application code the hotel-room visibility rule that also lives in Postgres (`can_view_hotel_room`, migration `0013`). Change both together. It exists because service-role code paths bypass RLS and the UI needs the reason text, not just a hidden field.
 - `validation/tour.ts` — zod schemas for every tour mutation, shared so a Route Handler and the future native app validate identically before writing to Supabase.
 
 ### apps/web
 
 Next.js App Router, Tailwind v4, Phosphor icons.
 
-- Routes: `/tour/[dateId]/{dia,show,lugar,equipo,equipo/[tab],club,rider}`. `app/tour/layout.tsx` loads dates + roster server-side and wraps children in `TourUIProvider`.
-- `src/context/TourUIContext.tsx` holds client-side UI state (active filters, drafts, in-memory edits to seeded mock data) as a single context provider.
+- Routes: `/tour/[dateId]/{dia,show,lugar,equipo,equipo/[tab],club,rider}`. `app/tour/[dateId]/layout.tsx` loads dates + roster server-side and wraps children in `TourUIProvider`. Pages get data through `src/lib/tourRepository.ts` (`getTourRepository({ dateId })`), which picks the source from `TOUR_DATA_SOURCE`; with `supabase`, `proxy.ts` also requires a session on `/tour`.
+- `src/context/TourUIContext.tsx` holds client-side UI state (active filters, drafts, in-memory edits). Guests, setlist, vehicles, reminders and notes are still seeded from mock constants in both modes, even though their tables exist — wiring them is pending.
+- PWA: `app/manifest.ts`, generated icons (`app/icon.tsx` → `/icon/192`, `/icon/512`; `app/apple-icon.tsx`) and `public/sw.js` (install + push only, no offline cache yet), registered in production by `components/ServiceWorkerRegistrar.tsx`.
 - `app/api/v1/**` Route Handlers exist specifically for cases Server Actions can't cover for a future native client, or where a server secret is needed (e.g. `RESEND_API_KEY`). Each `route.ts` has a comment explaining why it's a REST endpoint rather than a Server Action — read it before adding a new one, and follow the same reasoning (native-client compatibility or secret isolation) rather than defaulting to a Server Action.
 - `src/lib/supabase-server.ts` adapts Next's async `cookies()` into the generic `CookieAdapter` that `@gigbridge/data/server` expects — this is what keeps that package framework-agnostic.
 

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { listExternalContacts, listRoster, listTourDates, listVacancies } from "@gigbridge/data";
 import { EquipoView } from "@/components/tour/EquipoView";
 import type { EquipoTabId } from "@gigbridge/types";
+import { getTourRepository } from "@/lib/tourRepository";
 
 const VALID_TABS: EquipoTabId[] = ["crew", "areas", "ubicaciones", "contactos", "invitados"];
 
@@ -13,11 +13,12 @@ export default async function EquipoPage({
   const { dateId, tab } = await params;
   if (!VALID_TABS.includes(tab as EquipoTabId)) notFound();
 
+  const repo = await getTourRepository({ dateId });
   const [roster, vacancies, externalContacts, dates] = await Promise.all([
-    listRoster(),
-    listVacancies(),
-    listExternalContacts(),
-    listTourDates(),
+    repo.listRoster(),
+    repo.listVacancies(),
+    repo.listExternalContacts(),
+    repo.listTourDates(),
   ]);
 
   return (

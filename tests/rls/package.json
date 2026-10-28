@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@gigbridge/data": "workspace:*",
     "@gigbridge/types": "workspace:*",
     "@supabase/supabase-js": "^2.116.0"
   },

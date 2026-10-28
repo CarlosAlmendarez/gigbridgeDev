@@ -4,7 +4,7 @@ import { createFixture, type ActorName, type Fixture } from "./fixture";
 
 /**
  * Matriz de permisos del módulo de gira (migraciones 0006, 0008, 0012,
- * 0013) probada con la sesión real de cada actor. Cada `it` es una celda:
+ * 0013, 0014) probada con la sesión real de cada actor. Cada `it` es una celda:
  * si una policy cambia, aquí debe cambiar la expectativa en el mismo
  * commit — el doc de estrategia pide "pruebas de RLS por rol antes de
  * construir UI".
@@ -66,6 +66,16 @@ describe("tour_dates: escritura solo para admins", () => {
   it("un miembro no puede agregar fechas", async () => {
     const { error } = await client("soundA").from("tour_dates").insert({ tour_id: f.tourId, show_date: "2026-12-01" });
     expect(error).not.toBeNull();
+  });
+});
+
+describe("venues: un venue no público es legible para el crew de una gira que toca ahí (0014)", () => {
+  it.each(["soundA", "guest"] as const)("%s lee el venue de su fecha", async (name) => {
+    expect(await visibleIds(name, "venues", "id", f.venueId)).toHaveLength(1);
+  });
+
+  it.each(["outsider", "anon"] as const)("%s no lo ve", async (name) => {
+    expect(await visibleIds(name, "venues", "id", f.venueId)).toHaveLength(0);
   });
 });
 
