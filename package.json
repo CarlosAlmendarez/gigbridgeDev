@@ -1,0 +1,12 @@
+{
+  "name": "gigbridge",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --filter @gigbridge/web dev",
+    "build": "pnpm --filter @gigbridge/web build",
+    "start": "pnpm --filter @gigbridge/web start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
