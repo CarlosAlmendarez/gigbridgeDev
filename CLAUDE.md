@@ -25,13 +25,14 @@ Run from the repo root unless noted:
 - `pnpm typecheck` — typecheck every workspace package (`pnpm -r typecheck`)
 - Target a single package: `pnpm --filter @gigbridge/data typecheck`, `pnpm --filter @gigbridge/web lint`, etc.
 - `pnpm seed:demo` — loads the "Norte 2026" demo tour (`tools/demo-seed`) into the dev project, with three logins (`phil.demo@`, `dani.demo@`, `ruth.demo@example.test`: admin, dept head, party-A member). Idempotent: it deletes the previous demo tour first. Prints a random password unless `DEMO_PASSWORD` is set. Same production guard as the tests. Use it with `TOUR_DATA_SOURCE=supabase`.
-- `pnpm test:rls` — RLS-per-role and tour-repository tests (`tests/rls`, vitest). They run against the **live dev project** using `apps/web/.env.local`: they create real users/rows with the secret key and delete them afterwards, and refuse to start if the URL is the v1 production project. Migrations must be applied first. There is no unit-test runner for the web app and no Playwright yet.
+- `pnpm test:rls` — RLS-per-role and tour-repository tests (`tests/rls`, vitest). They run against the **live dev project** using `apps/web/.env.local`: they create real users/rows with the secret key and delete them afterwards, and refuse to start if the URL is the v1 production project. Migrations must be applied first. There is no unit-test runner for the web app.
+- `pnpm test:e2e` — Playwright (`tests/e2e`): builds the web app, starts it with `TOUR_DATA_SOURCE=supabase` on port 3930, and drives it in Chromium (desktop + phone) against the same dev project, reusing the `tests/rls` fixture (created in global setup, deleted in teardown). The test browser is pinned to `es-MX` because the app picks the language from `Accept-Language`. Same production guard as `test:rls`.
 
 Env setup: copy `apps/web/.env.local.example` to `apps/web/.env.local`. It needs the Supabase URL/publishable key/secret key of the **dev** project above (`irmjtifbhtabxghiikbf` — do not copy v1's `.env.local`, that one points at production), plus `RESEND_API_KEY`/`FROM_EMAIL` for transactional email, and `TOUR_DATA_SOURCE` (`mock` default, or `supabase`).
 
 ## Workspace layout
 
-`pnpm-workspace.yaml` covers `apps/*`, `packages/*` and `tests/*` (test-only packages, never imported by apps). Dependency direction is one-way:
+`pnpm-workspace.yaml` covers `apps/*`, `packages/*`, `tests/*` (test-only packages, never imported by apps) and `tools/*`. Dependency direction is one-way:
 
 ```
 @gigbridge/types  (no deps)
@@ -84,6 +85,7 @@ Next.js App Router, Tailwind v4, Phosphor icons.
 - `/dashboard` is the post-login home (login, register, setup and the proxy all land there): the user's tours via `listMyTours` (RLS) plus their venue if their role is `venue`, and a "New tour" form (`createTour`: tour + first date, under the user's own band) if their role is `manager`. Any `?next=` redirect must go through `src/lib/safeNext.ts` (internal paths only; rejects `//` and `\`).
 - Tour UI with `TOUR_DATA_SOURCE=supabase` must never show prototype content as if it were real: `DiaView`/`RiderView` render prototype-only cards only in mock mode, and sections without backing data are hidden or show an empty state rather than placeholder values.
 - CSS: `.card`, `.btn`, `.tag`, `.input`, `.table` live in `@layer components` in `globals.css`, so Tailwind utilities override them (`className="card flex-row"` is a row). No `!` modifier needed. Keep new component classes inside that layer; an unlayered rule would beat every utility.
+- Each section mounts its own `NextIntlClientProvider` with only the namespaces its client components use (`lib/clientMessages.ts`): the root layout passes `auth`/`venue`, `/dashboard` adds `dashboard`/`venue_wizard`, `/tour` gets only `tour`. Never render a provider without an explicit `messages` prop: in next-intl 4 it then inherits the whole catalog (~120 KB per page). A client component using a new namespace needs it added to its section's list.
 - PWA: `app/manifest.ts`, generated icons (`app/icon.tsx` → `/icon/192`, `/icon/512`; `app/apple-icon.tsx`) and `public/sw.js` (install + push only, no offline cache yet), registered in production by `components/ServiceWorkerRegistrar.tsx`.
 - `app/api/v1/**` Route Handlers exist specifically for cases Server Actions can't cover for a future native client, or where a server secret is needed (e.g. `RESEND_API_KEY`). Each `route.ts` has a comment explaining why it's a REST endpoint rather than a Server Action — read it before adding a new one, and follow the same reasoning (native-client compatibility or secret isolation) rather than defaulting to a Server Action.
 - `src/lib/supabase-server.ts` adapts Next's async `cookies()` into the generic `CookieAdapter` that `@gigbridge/data/server` expects — this is what keeps that package framework-agnostic.

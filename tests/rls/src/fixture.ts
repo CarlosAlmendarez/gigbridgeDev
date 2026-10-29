@@ -30,6 +30,8 @@ type CrewActor = Exclude<ActorName, "owner" | "outsider">;
 
 export interface Actor {
   userId: string;
+  /** Para iniciar sesión desde el navegador (tests/e2e), con `Fixture.password`. */
+  email: string;
   profileId: string;
   crewMemberId: string | null;
   tourCrewId: string | null;
@@ -40,6 +42,7 @@ export interface Fixture {
   admin: SupabaseClient;
   anon: SupabaseClient;
   actors: Record<ActorName, Actor>;
+  password: string;
   tourId: string;
   venueId: string;
   tourDateId: string;
@@ -102,7 +105,7 @@ export async function createFixture(): Promise<Fixture> {
       const client = newClient(PUBLISHABLE_KEY);
       const { error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
       if (error) throw new Error(`Fixture: login ${name} falló: ${error.message}`);
-      return { userId: user.id, profileId: profile.id, client };
+      return { userId: user.id, email, profileId: profile.id, client };
     }
 
     const names: ActorName[] = ["owner", "coAdmin", "soundA", "soundB", "lights", "guest", "soundHead", "outsider"];
@@ -261,6 +264,7 @@ export async function createFixture(): Promise<Fixture> {
       admin,
       anon: newClient(PUBLISHABLE_KEY),
       actors,
+      password: PASSWORD,
       tourId: tour.id,
       venueId: venue.id,
       tourDateId: showDate.id,

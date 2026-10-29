@@ -1,0 +1,18 @@
+{
+  "name": "@gigbridge/e2e-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@gigbridge/rls-tests": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

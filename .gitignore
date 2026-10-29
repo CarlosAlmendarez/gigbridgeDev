@@ -48,3 +48,5 @@ supabase/.temp/
 
 # handoffs de diseño (artefactos de referencia, viven fuera del repo)
 *-handoff.zip
+tests/e2e/.fixture.json
+tests/e2e/test-results/

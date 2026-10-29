@@ -9,6 +9,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test:rls": "pnpm --filter @gigbridge/rls-tests test",
-    "seed:demo": "pnpm --filter @gigbridge/demo-seed seed"
+    "seed:demo": "pnpm --filter @gigbridge/demo-seed seed",
+    "test:e2e": "pnpm --filter @gigbridge/e2e-tests test"
   }
 }
