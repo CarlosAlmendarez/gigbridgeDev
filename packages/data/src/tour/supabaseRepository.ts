@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_LOCALE, fillText, tourMessages, type Locale } from "@gigbridge/config";
 import type {
   DocFile,
   Guest,
@@ -109,7 +110,12 @@ export async function listMyTours(client: SupabaseClient, today: string): Promis
   });
 }
 
-export function createSupabaseTourRepository(client: SupabaseClient, scope: TourScope): TourRepository {
+export function createSupabaseTourRepository(
+  client: SupabaseClient,
+  scope: TourScope,
+  locale: Locale = DEFAULT_LOCALE
+): TourRepository {
+  const tx = tourMessages(locale).data;
   let tourIdPromise: Promise<string | null> | null = null;
 
   function resolveTourId(): Promise<string | null> {
@@ -204,7 +210,11 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       const dates = await fetchDates(tourId);
       const pos = positions(dates);
       return dates.map((d) =>
-        mapTourDate(d, d.venue, pos(d), {
+        mapTourDate(
+          d,
+          d.venue,
+          pos(d),
+          {
           laborCalls: d.labor_calls ?? [],
           setlistSongs: first(d.setlists)?.songs.length ?? null,
           hotelRooms: [],
@@ -214,7 +224,9 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
           venueDocs: [],
           dateNotes: [],
           venueNotes: [],
-        })
+          },
+          locale
+        )
       );
     },
 
@@ -248,12 +260,12 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
         setlistSongs: first(date.setlists)?.songs.length ?? null,
         hotelRooms: (rooms.data ?? []) as HotelRoomAssignmentRow[],
         ...docs,
-        dateNotes: noteRows.filter((n) => n.entity_type === "tour_date" && n.entity_id === dateId).map((n) => mapNote(n)),
+        dateNotes: noteRows.filter((n) => n.entity_type === "tour_date" && n.entity_id === dateId).map((n) => mapNote(n, undefined, locale)),
         venueNotes: noteRows
           .filter((n) => n.entity_type === "venue" && n.entity_id === date.venue_id)
-          .map((n) => mapNote(n, date.venue?.name)),
+          .map((n) => mapNote(n, date.venue?.name, locale)),
       };
-      return mapTourDate(date, date.venue, positions(dates)(date), extras);
+      return mapTourDate(date, date.venue, positions(dates)(date), extras, locale);
     },
 
     async listRoster() {
@@ -274,7 +286,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       ]);
       if (crew.error) fail("tour_crew", crew.error);
       if (rooms.error) fail("hotel_room_assignments", rooms.error);
-      return mapRoster((crew.data ?? []) as unknown as RosterRow[], (rooms.data ?? []) as HotelRoomAssignmentRow[]);
+      return mapRoster((crew.data ?? []) as unknown as RosterRow[], (rooms.data ?? []) as HotelRoomAssignmentRow[], locale);
     },
 
     async listGuests() {
@@ -299,7 +311,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
         (byDate[g.tour_date_id] ??= []).push({
           id: g.id,
           name: g.guest_name,
-          by: author ? `Agregado por ${author}` : "Agregado por el equipo",
+          by: author ? fillText(tx.addedBy, { name: author }) : tx.addedByTeam,
           status: g.status,
         });
       }
@@ -331,14 +343,16 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       if (notes.error) fail("tour_notes", notes.error);
       if (dates.error) fail("tour_dates", dates.error);
 
-      const dateLabel = new Map((dates.data ?? []).map((d) => [d.id as string, shortDateLabel(d.show_date as string)]));
+      const dateLabel = new Map((dates.data ?? []).map((d) => [d.id as string, shortDateLabel(d.show_date as string, locale)]));
       const venueName = new Map(
         (dates.data ?? []).filter((d) => d.venue_id).map((d) => [d.venue_id as string, first(d.venue as unknown as { name: string } | { name: string }[] | null)?.name ?? ""])
       );
       return ((notes.data ?? []) as unknown as Array<Pick<TourNoteRow, "entity_type" | "entity_id"> & NoteWithAuthor>).map((n) => {
         const origen =
-          n.entity_type === "venue" ? `Lugar · ${venueName.get(n.entity_id) ?? "venue"}` : `Fecha · ${dateLabel.get(n.entity_id) ?? ""}`;
-        return { ...mapNote(n), origen };
+          n.entity_type === "venue"
+            ? fillText(tx.noteFromVenue, { venue: venueName.get(n.entity_id) ?? tx.venueFallback })
+            : fillText(tx.noteFromDate, { date: dateLabel.get(n.entity_id) ?? "" });
+        return { ...mapNote(n, undefined, locale), origen };
       });
     },
 
@@ -356,7 +370,7 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
       return {
         id: tour.data.id as string,
         name: tour.data.name as string,
-        bandLine: [band, `${n} ${n === 1 ? "fecha" : "fechas"}`].filter(Boolean).join(" · "),
+        bandLine: [band, fillText(n === 1 ? tx.datesOne : tx.datesOther, { n })].filter(Boolean).join(" · "),
       };
     },
 
@@ -369,11 +383,10 @@ export function createSupabaseTourRepository(client: SupabaseClient, scope: Tour
         .eq("tour_id", tourId)
         .order("load_order", { nullsFirst: false });
       if (error) fail("tour_vehicles", error);
-      const TYPE: Record<string, string> = { truck: "Tráiler", bus: "Autobús", van: "Van" };
       return ((data ?? []) as Array<Pick<TourVehicleRow, "id" | "label" | "vehicle_type">>).map((v) => ({
         id: v.id,
         label: v.label,
-        meta: v.vehicle_type ? TYPE[v.vehicle_type] : "",
+        meta: v.vehicle_type ? tx[`vehicle_${v.vehicle_type}`] ?? "" : "",
       }));
     },
 

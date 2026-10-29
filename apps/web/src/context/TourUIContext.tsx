@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { DEFAULT_REMINDERS, type NotaEntry, type TourDataSource } from "@gigbridge/data";
 import {
   addDateNoteAction,
@@ -143,6 +144,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
   const [state, setState] = useState<TourUIState>(() => initialState(data));
   const [, startTransition] = useTransition();
   const router = useRouter();
+  const t = useTranslations("tour");
   const live = data.source === "supabase";
 
   /**
@@ -155,12 +157,12 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
     startTransition(async () => {
       try {
         const result = await task();
-        if (!result.ok) return setState((st) => ({ ...st, syncError: result.message ?? "No se pudo guardar." }));
+        if (!result.ok) return setState((st) => ({ ...st, syncError: result.message ?? t("sync.saveFailed") }));
         setState((st) => ({ ...st, ...onOk, syncError: null }));
         if (refresh) router.refresh();
       } catch (err) {
         console.error(err);
-        setState((st) => ({ ...st, syncError: "Sin conexión: el cambio no se guardó." }));
+        setState((st) => ({ ...st, syncError: t("sync.offline") }));
       }
     });
   }
@@ -235,7 +237,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         return {
           ...st,
           notaDraft: "",
-          notas: [{ origen, body, meta: "Tú · ahora · 11 del crew notificados" }].concat(st.notas),
+          notas: [{ origen, body, meta: t("demo.youNotified") }].concat(st.notas),
         };
       });
     },
@@ -254,7 +256,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
           venueNoteDraft: "",
           extraVenueNotes: {
             ...st.extraVenueNotes,
-            [dateId]: [{ body, meta: "Tú · ahora" }].concat(st.extraVenueNotes[dateId] || []),
+            [dateId]: [{ body, meta: t("demo.you") }].concat(st.extraVenueNotes[dateId] || []),
           },
         };
       });
@@ -265,7 +267,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         extraVenueFiles: {
           ...st.extraVenueFiles,
           [dateId]: (st.extraVenueFiles[dateId] || []).concat([
-            { name: "Documento nuevo del lugar", kind: "pdf", meta: "Subido por ti · ahora", status: "nuevo" },
+            { name: t("demo.newVenueDoc"), kind: "pdf", meta: t("demo.uploadedByYou"), status: "nuevo" },
           ]),
         },
       })),
@@ -284,7 +286,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
           showNoteDraft: "",
           extraShowNotes: {
             ...st.extraShowNotes,
-            [dateId]: [{ body, meta: "Tú · ahora · visible para el stage manager" }].concat(
+            [dateId]: [{ body, meta: t("demo.youStage") }].concat(
               st.extraShowNotes[dateId] || []
             ),
           },
@@ -297,7 +299,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         extraShowFiles: {
           ...st.extraShowFiles,
           [dateId]: (st.extraShowFiles[dateId] || []).concat([
-            { name: "Documento técnico nuevo", kind: "pdf", meta: "Subido por ti · ahora", status: "nuevo" },
+            { name: t("demo.newShowDoc"), kind: "pdf", meta: t("demo.uploadedByYou"), status: "nuevo" },
           ]),
         },
       })),
@@ -317,7 +319,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
           guestsByDate: {
             ...st.guestsByDate,
             [dateId]: (st.guestsByDate[dateId] || []).concat([
-              { name, by: "Agregado por ti · ahora", status: "pending" },
+              { name, by: t("demo.addedByYou"), status: "pending" },
             ]),
           },
         };
@@ -340,7 +342,12 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
             const { error } = (await res.json().catch(() => ({}))) as { error?: unknown };
             return {
               ok: false,
-              message: res.status === 404 ? "Solo un admin de la gira puede cambiar el status." : typeof error === "string" ? error : "No se pudo cambiar el status.",
+              message:
+                res.status === 404
+                  ? t("sync.guestStatusAdminOnly")
+                  : typeof error === "string"
+                    ? error
+                    : t("sync.guestStatusFailed"),
             };
           },
           undefined,
@@ -368,7 +375,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
         >
           <span>{state.syncError}</span>
           <button type="button" className="font-semibold" onClick={() => setState((st) => ({ ...st, syncError: null }))}>
-            Cerrar
+            {t("sync.close")}
           </button>
         </div>
       )}

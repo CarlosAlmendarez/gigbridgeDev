@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
 import { REMINDER_PRESETS, buildGroups, fileTag } from "@gigbridge/data";
 import { chipClass } from "@/lib/ui";
+import type { Locale } from "@gigbridge/config";
 import type { RosterPerson, TourDate } from "@gigbridge/types";
 
 export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourDate: TourDate; roster: RosterPerson[] }) {
@@ -24,6 +26,8 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
     addNota,
     adopted: adoptedState,
   } = useTourUI();
+  const t = useTranslations("tour");
+  const locale = useLocale() as Locale;
   const live = source === "supabase";
   // Un día de viaje sin datos de ruta no tiene ficha del lugar que ver.
   const isTravel = d.kind === "Viaje" && d.venue.specs.length === 0;
@@ -35,10 +39,11 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
   const lensedOnSite = buildGroups(
     lensedRoster.filter((p) => p.onSite),
     [],
-    "equipo"
+    "equipo",
+    locale
   );
   const crewTodayTitle =
-    (live ? "Equipo confirmado" : "Equipos en sitio") + (lens === "Todos" ? "" : ` · Party ${lens}`);
+    t(live ? "dia.crewConfirmed" : "dia.crewOnSite") + (lens === "Todos" ? "" : ` · ${t(`parties.${lens}.label`)}`);
 
   const barColor = d.completion >= 80 ? "bg-accent" : "bg-accent-2";
 
@@ -51,40 +56,40 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
         <div className="flex flex-wrap gap-2 mt-4">
           <a className="btn btn-primary min-h-11" href={d.mapUrl} target="_blank" rel="noopener">
             <Icon name="map-pin-line" />
-            Cómo llegar
+            {t("common.directions")}
           </a>
           {d.tel && (
             <a className="btn btn-secondary min-h-11" href={d.tel}>
               <Icon name="phone-call" />
-              Llamar a {d.telLabel || "producción"}
+              {t("dia.callTo", { who: d.telLabel || t("dia.production") })}
             </a>
           )}
           {!isTravel && (
             <Link className="btn btn-secondary min-h-11" href={`/tour/${dateId}/lugar`}>
               <Icon name="map-trifold" />
-              Ficha del lugar
+              {t("dia.venueSheet")}
             </Link>
           )}
           <Link className="btn btn-secondary min-h-11" href={`/tour/${dateId}/show`}>
             <Icon name="microphone-stage" />
-            Ficha del show
+            {t("dia.showSheet")}
           </Link>
         </div>
         {d.contactLine && <div className="text-[13px] text-neutral-700 mt-2">{d.contactLine}</div>}
 
         <div className="pt-8">
           <div className="flex items-baseline gap-2 mb-1">
-            <h6 className="m-0 mr-auto">Reloj del día</h6>
+            <h6 className="m-0 mr-auto">{t("dia.clockTitle")}</h6>
             {d.clock.length > 0 && (
               <span className="text-xs text-neutral-700 tabular-nums">
-                {hechos} de {d.clock.length} cumplidos
+                {t("dia.clockDone", { done: hechos, total: d.clock.length })}
               </span>
             )}
           </div>
           {d.clock.length > 0 ? (
             <>
               <p className="text-xs text-neutral-700 mb-3">
-                Toca un horario para marcarlo como cumplido. La marca solo se guarda en este dispositivo.
+                {t("dia.clockHelp")}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-4">
                 {d.clock.map((c) => {
@@ -117,17 +122,17 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
               </div>
             </>
           ) : (
-            <p className="text-sm text-neutral-700">Sin horarios cargados para esta fecha.</p>
+            <p className="text-sm text-neutral-700">{t("dia.clockEmpty")}</p>
           )}
           {d.clockNote && <div className="text-[15px] italic mt-4">{d.clockNote}</div>}
         </div>
 
         {vehicles.length > 0 && (
           <div className="pt-8 max-w-[520px]">
-            <h6 className="mb-1">Orden de carga</h6>
+            <h6 className="mb-1">{t("dia.loadOrder")}</h6>
             <p className="text-xs text-neutral-700 mb-3">
-              Orden en que los vehículos entran a descargar al venue.
-              {live ? " Solo los admins de la gira pueden cambiarlo." : ""}
+              {t("dia.loadOrderHelp")}
+              {live ? ` ${t("dia.loadOrderAdminOnly")}` : ""}
             </p>
             {vehicles.map((v, i) => (
               <div key={v.id ?? i} className="flex items-center gap-2 py-1">
@@ -141,7 +146,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
                   className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
                   onClick={() => moveVehicle(i, -1)}
                   disabled={i === 0}
-                  aria-label={`Subir ${v.label}`}
+                  aria-label={t("common.moveUp", { name: v.label })}
                 >
                   <Icon name="arrow-up" size={15} />
                 </button>
@@ -150,7 +155,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
                   className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
                   onClick={() => moveVehicle(i, 1)}
                   disabled={i === vehicles.length - 1}
-                  aria-label={`Bajar ${v.label}`}
+                  aria-label={t("common.moveDown", { name: v.label })}
                 >
                   <Icon name="arrow-down" size={15} />
                 </button>
@@ -164,7 +169,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
             <div className="flex items-baseline gap-2 mb-3">
               <h6 className="m-0 mr-auto">{crewTodayTitle}</h6>
               <Link className="btn btn-ghost text-[13px]" href={`/tour/${dateId}/equipo/crew`}>
-                Ver todo el equipo
+                {t("dia.seeAllCrew")}
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2 gap-x-6">
@@ -186,7 +191,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
 
         {d.itinerary.length > 0 && (
           <div className="pt-8">
-            <h6 className="mb-3">Itinerario de viaje</h6>
+            <h6 className="mb-3">{t("dia.itinerary")}</h6>
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 gap-x-6">
               {d.itinerary.map((it, i) => (
                 <div key={i} className="flex gap-3">
@@ -206,8 +211,8 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
       <div>
         <div>
           <div className="flex items-baseline gap-2 mb-2">
-            <h6 className="m-0 mr-auto">Qué falta</h6>
-            <span className="text-xs text-neutral-700 tabular-nums">{d.completion}% listo</span>
+            <h6 className="m-0 mr-auto">{t("dia.missingTitle")}</h6>
+            <span className="text-xs text-neutral-700 tabular-nums">{t("dia.ready", { pct: d.completion })}</span>
           </div>
           <div
             className="h-[3px] bg-neutral-300 rounded-sm"
@@ -215,7 +220,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
             aria-valuenow={d.completion}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Avance de la fecha"
+            aria-label={t("dia.progressLabel")}
           >
             <div className={"h-[3px] rounded-sm " + barColor} style={{ width: `${d.completion}%` }} />
           </div>
@@ -228,38 +233,36 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
               ))}
             </div>
           ) : (
-            <p className="text-sm text-neutral-700 mt-3">Nada pendiente para esta fecha.</p>
+            <p className="text-sm text-neutral-700 mt-3">{t("dia.nothingMissing")}</p>
           )}
         </div>
 
         <div className="pt-6">
-          <h6 className="mb-2">Hospedaje</h6>
+          <h6 className="mb-2">{t("dia.lodging")}</h6>
           {d.hotel ? (
             <>
               <div className="font-heading font-semibold text-xl">{d.hotel}</div>
               {d.hotelMeta && <div className="text-sm mt-[3px]">{d.hotelMeta}</div>}
             </>
           ) : (
-            <p className="text-sm text-neutral-700">Sin hospedaje cargado para esta fecha.</p>
+            <p className="text-sm text-neutral-700">{t("dia.noLodging")}</p>
           )}
           <div className="flex gap-2 mt-3">
             {d.hotelMap && (
               <a className="btn btn-secondary min-h-10" href={d.hotelMap} target="_blank" rel="noopener">
                 <Icon name="navigation-arrow" size={17} />
-                Ruta al hotel
+                {t("dia.routeToHotel")}
               </a>
             )}
             <Link className="btn btn-secondary min-h-10" href={`/tour/${dateId}/equipo/ubicaciones`}>
               <Icon name="bed" size={17} />
-              Quién duerme dónde
+              {t("dia.whoSleepsWhere")}
             </Link>
           </div>
           <div className="flex items-start gap-2 mt-3 text-[13px] text-neutral-700">
             <Icon name="lock-key" size={17} className="text-accent-2-700" />
             <span>
-              {live
-                ? "Cada quien ve su propio cuarto. Los demás números solo aparecen si tienes permiso de verlos."
-                : "Número de cuarto oculto: solo lo ve el Personal Manager y quien él autorice."}
+              {t(live ? "dia.roomPrivacyLive" : "dia.roomPrivacyDemo")}
             </span>
           </div>
         </div>
@@ -268,7 +271,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
 
         {!live && (
           <div className="pt-6">
-            <h6 className="mb-2">Mis recordatorios</h6>
+            <h6 className="mb-2">{t("dia.reminders")}</h6>
             {reminders.map((r, i) => (
               <div key={i} className="flex items-center gap-3 py-[5px]">
                 <Icon name="alarm" size={19} className="text-accent-700" />
@@ -280,7 +283,7 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
                   type="button"
                   className="btn btn-secondary btn-icon w-9 h-9"
                   onClick={() => dismissReminder(i)}
-                  aria-label={`Quitar recordatorio de las ${r.at}`}
+                  aria-label={t("dia.removeReminder", { time: r.at })}
                 >
                   <Icon name="x" size={15} />
                 </button>
@@ -302,11 +305,9 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
         )}
 
         <div className="pt-6">
-          <h6 className="mb-1">Notas de la gira</h6>
-          <p className="text-xs text-neutral-700 mb-2">
-            Avisos para todo el equipo. Lo que escribas aquí queda ligado a esta fecha.
-          </p>
-          {notas.length === 0 && <p className="text-sm text-neutral-700">Todavía no hay notas.</p>}
+          <h6 className="mb-1">{t("dia.notesTitle")}</h6>
+          <p className="text-xs text-neutral-700 mb-2">{t("dia.notesHelp")}</p>
+          {notas.length === 0 && <p className="text-sm text-neutral-700">{t("common.noNotes")}</p>}
           {notas.map((n, i) => (
             <div key={i} className="py-2">
               <span className="tag tag-neutral">{n.origen}</span>
@@ -318,18 +319,18 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
             className="flex gap-2 mt-2"
             onSubmit={(e) => {
               e.preventDefault();
-              addNota(`Fecha · ${d.dateline.replace(/ \d{4}$/, "")}`, dateId);
+              addNota(t("demo.noteOrigin", { date: d.dateline.replace(/,? \d{4}$/, "") }), dateId);
             }}
           >
             <input
               className="input min-h-[42px]"
               type="text"
-              placeholder="Escribe un aviso para el equipo"
-              aria-label="Nueva nota de la gira"
+              placeholder={t("dia.notePlaceholder")}
+              aria-label={t("dia.noteLabel")}
               value={notaDraft}
               onChange={(e) => setNotaDraft(e.target.value)}
             />
-            <button type="submit" className="btn btn-primary min-h-[42px] min-w-[42px]" aria-label="Publicar nota">
+            <button type="submit" className="btn btn-primary min-h-[42px] min-w-[42px]" aria-label={t("dia.publishNote")}>
               <Icon name="paper-plane-tilt" size={17} />
             </button>
           </form>
@@ -341,24 +342,23 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
 
 /** Con datos reales: documentos de la fecha y su vigencia (referencia en vivo, 0007). */
 function LiveDocsCard({ dateId, d }: { dateId: string; d: TourDate }) {
+  const t = useTranslations("tour");
+  const locale = useLocale() as Locale;
   const toReview = d.show.docs.filter((f) => f.status === "revisar").length;
   return (
     <div className="pt-6 flex flex-col gap-2">
-      <h6 className="m-0">Documentos de la fecha</h6>
+      <h6 className="m-0">{t("dia.docsTitle")}</h6>
       <div className="card elev-sm">
         {d.show.docs.length === 0 ? (
-          <p className="card-body">Esta fecha todavía no tiene documentos ligados (rider, plano, patch list…).</p>
+          <p className="card-body">{t("dia.docsEmpty")}</p>
         ) : (
           <>
             {toReview > 0 && (
-              <p className="card-body">
-                {toReview === 1 ? "1 documento tiene" : `${toReview} documentos tienen`} una versión más nueva que la
-                que usa esta fecha.
-              </p>
+              <p className="card-body">{t("dia.docsToReview", { count: toReview })}</p>
             )}
             <div className="flex flex-col gap-1">
               {d.show.docs.slice(0, 4).map((f, i) => {
-                const [tagClass, tagLabel] = fileTag(f.status);
+                const [tagClass, tagLabel] = fileTag(f.status, locale);
                 return (
                   <div key={f.documentId ?? i} className="flex items-center gap-2">
                     <span className="flex-1 min-w-0 text-sm break-words">{f.name}</span>
@@ -371,12 +371,12 @@ function LiveDocsCard({ dateId, d }: { dateId: string; d: TourDate }) {
         )}
         <Link className="btn btn-primary min-h-10" href={`/tour/${dateId}/rider`}>
           <Icon name="file-pdf" size={17} />
-          Documentos y versiones
+          {t("dia.docsAndVersions")}
         </Link>
       </div>
       {d.kind !== "Viaje" && (
         <div className="card elev-sm">
-          <span className="card-kicker">Expediente del venue</span>
+          <span className="card-kicker">{t("dia.venueFile")}</span>
           <div className="card-title">{d.venueRider}</div>
           {d.venueRiderNote && <p className="card-body">{d.venueRiderNote}</p>}
           <div className="card-meta">

@@ -3,18 +3,14 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { dateChipClass } from "@/lib/ui";
-import type { DateKind, TourDate } from "@gigbridge/types";
-
-const KIND_HELP: Record<DateKind, string> = {
-  Show: "Show confirmado",
-  Hold: "Hold: fecha apartada, todavía sin confirmar",
-  Viaje: "Día de viaje o descanso, sin show",
-};
+import type { TourDate } from "@gigbridge/types";
 
 export function DateStrip({ dates }: { dates: TourDate[] }) {
   const pathname = usePathname();
   const params = useParams<{ dateId: string }>();
+  const t = useTranslations("tour");
   const dateId = params.dateId;
   const day = dates.find((d) => d.id === dateId) ?? dates[0];
 
@@ -42,14 +38,14 @@ export function DateStrip({ dates }: { dates: TourDate[] }) {
               href={hrefForDate(d.id)}
               className={dateChipClass(d.id === dateId)}
               aria-current={d.id === dateId ? "date" : undefined}
-              aria-label={`${d.dateline} · ${KIND_HELP[d.kind]}`}
-              title={KIND_HELP[d.kind]}
+              aria-label={`${d.dateline} · ${t(`kindHelp.${d.kind}`)}`}
+              title={t(`kindHelp.${d.kind}`)}
             >
               <span className="text-[11px] tracking-[0.08em] uppercase">{d.dow}</span>
               <span className="font-heading font-semibold text-2xl leading-none [font-variant-numeric:tabular-nums]">
                 {d.day}
               </span>
-              <span className="text-[10px] tracking-[0.06em] uppercase">{d.kind}</span>
+              <span className="text-[10px] tracking-[0.06em] uppercase">{t(`kind.${d.kind}`)}</span>
             </Link>
           ))}
         </div>

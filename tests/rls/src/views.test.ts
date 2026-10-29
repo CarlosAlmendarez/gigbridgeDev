@@ -69,6 +69,21 @@ describe("encabezado y Mis giras", () => {
   });
 });
 
+describe("idioma", () => {
+  it("con locale en, la capa de datos arma los textos en inglés", async () => {
+    const repo = createSupabaseTourRepository(f.actors.guest.client, { dateId: f.tourDateId }, "en");
+    expect((await repo.getTourSummary())?.bandLine).toMatch(/· 2 dates$/);
+    const date = await repo.getTourDate(f.tourDateId);
+    expect(date?.dateline).toBe("Fri Nov 20, 2026");
+    expect(date?.show.headline.map((h) => h.label)).toEqual(["Load-in", "Doors", "Show", "Local crew"]);
+  });
+
+  it("los rechazos de las mutaciones salen en el idioma pedido", async () => {
+    const denied = await moveTourVehicle(f.actors.soundA.client, { tourDateId: f.tourDateId, fromIndex: 0, toIndex: 1 }, "en");
+    expect(denied).toEqual({ ok: false, message: "Only a tour admin can change the load order." });
+  });
+});
+
 describe("orden de carga", () => {
   it("un miembro no puede reordenar; un admin sí y persiste", async () => {
     const denied = await moveTourVehicle(f.actors.soundA.client, { tourDateId: f.tourDateId, fromIndex: 0, toIndex: 2 });

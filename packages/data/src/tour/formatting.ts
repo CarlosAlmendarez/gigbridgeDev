@@ -1,4 +1,4 @@
-import { DEPT_ORDER, PARTIES, TEAMS, TEAM_ORDER } from "@gigbridge/config";
+import { DEFAULT_LOCALE, DEPT_ORDER, PARTIES, TEAMS, TEAM_ORDER, tourMessages, type Locale } from "@gigbridge/config";
 import type { DocFile, FileStatus, GroupModeId, GuestStatus, PartyKey, RosterPerson, Vacancy } from "@gigbridge/types";
 import { fileIcon } from "./mockData";
 
@@ -16,13 +16,19 @@ export interface RosterGroup {
   vacancies: Vacancy[];
 }
 
-export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: GroupModeId): RosterGroup[] {
+export function buildGroups(
+  roster: RosterPerson[],
+  vacancies: Vacancy[],
+  mode: GroupModeId,
+  locale: Locale = DEFAULT_LOCALE
+): RosterGroup[] {
+  const tx = tourMessages(locale);
   if (mode === "party") {
     return (["A", "B", "C"] as PartyKey[]).map((k) => ({
       key: k,
-      name: PARTIES[k].name,
+      name: tx.parties[k].name,
       icon: PARTIES[k].icon,
-      subtitle: PARTIES[k].blurb,
+      subtitle: tx.parties[k].blurb,
       people: roster.filter((p) => p.party === k),
       vacancies: vacancies.filter((v) => v.party === k),
     }));
@@ -30,9 +36,9 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
   if (mode === "equipo") {
     return TEAM_ORDER.map((t) => ({
       key: t,
-      name: t,
+      name: tx.teams[t] ?? t,
       icon: TEAMS[t].icon,
-      subtitle: TEAMS[t].dept,
+      subtitle: tx.departments[TEAMS[t].dept] ?? TEAMS[t].dept,
       people: roster.filter((p) => p.team === t),
       vacancies: vacancies.filter((v) => v.team === t),
     })).filter((g) => g.people.length || g.vacancies.length);
@@ -40,9 +46,9 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
   if (mode === "depto") {
     return DEPT_ORDER.map((d) => ({
       key: d,
-      name: d,
+      name: tx.departments[d] ?? d,
       icon: "squares-four",
-      subtitle: "Departamento del catálogo",
+      subtitle: tx.data.deptSubtitle,
       people: roster.filter((p) => TEAMS[p.team]?.dept === d),
       vacancies: vacancies.filter((v) => TEAMS[v.team]?.dept === d),
     })).filter((g) => g.people.length || g.vacancies.length);
@@ -50,9 +56,9 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
   return [
     {
       key: "chain",
-      name: "Cadena de mando",
+      name: tx.data.chainName,
       icon: "tree-structure",
-      subtitle: "Del Tour Manager hacia abajo, según reports_to",
+      subtitle: tx.data.chainSubtitle,
       // El repositorio (mock y Supabase) ya entrega el roster en orden de
       // cadena de mando; aquí solo se respeta.
       people: roster.slice(),
@@ -61,22 +67,30 @@ export function buildGroups(roster: RosterPerson[], vacancies: Vacancy[], mode: 
   ];
 }
 
-export function fileTag(status: FileStatus): [string, string] {
-  if (status === "falta") return ["tag tag-accent-2", "Falta"];
-  if (status === "revisar") return ["tag tag-accent-2", "Revisar"];
-  if (status === "nuevo") return ["tag tag-outline", "Pendiente de subir"];
-  return ["tag tag-accent", "Vigente"];
+const FILE_TAG_CLASS: Record<FileStatus, string> = {
+  falta: "tag tag-accent-2",
+  revisar: "tag tag-accent-2",
+  nuevo: "tag tag-outline",
+  vigente: "tag tag-accent",
+};
+
+const GUEST_TAG_CLASS: Record<GuestStatus, string> = {
+  confirmed: "tag tag-accent",
+  denied: "tag tag-neutral",
+  pending: "tag tag-accent-2",
+};
+
+export function fileTag(status: FileStatus, locale: Locale = DEFAULT_LOCALE): [string, string] {
+  return [FILE_TAG_CLASS[status], tourMessages(locale).fileStatus[status]];
 }
 
-export function guestTag(status: GuestStatus): [string, string] {
-  if (status === "confirmed") return ["tag tag-accent", "Confirmado"];
-  if (status === "denied") return ["tag tag-neutral", "Rechazado"];
-  return ["tag tag-accent-2", "Pendiente"];
+export function guestTag(status: GuestStatus, locale: Locale = DEFAULT_LOCALE): [string, string] {
+  return [GUEST_TAG_CLASS[status], tourMessages(locale).guestStatus[status]];
 }
 
-export function mapFiles(list: DocFile[]) {
+export function mapFiles(list: DocFile[], locale: Locale = DEFAULT_LOCALE) {
   return list.map((f) => {
-    const [tagClass, tagLabel] = fileTag(f.status);
+    const [tagClass, tagLabel] = fileTag(f.status, locale);
     return {
       name: f.name,
       meta: f.meta,

@@ -1,6 +1,6 @@
 import { getRequestConfig } from "next-intl/server";
 import { cookies } from "next/headers";
-import { DEFAULT_LOCALE, isSupportedLocale, LOCALE_COOKIE, type Locale } from "@gigbridge/config";
+import { DEFAULT_LOCALE, isSupportedLocale, LOCALE_COOKIE, tourMessages, type Locale } from "@gigbridge/config";
 
 export default getRequestConfig(async () => {
   const cookieStore = await cookies();
@@ -9,6 +9,8 @@ export default getRequestConfig(async () => {
 
   return {
     locale,
-    messages: (await import(`../../messages/${locale}.json`)).default,
+    // El namespace `tour` sale de @gigbridge/config: la capa de datos (y la
+    // app nativa) usan el mismo diccionario.
+    messages: { ...(await import(`../../messages/${locale}.json`)).default, tour: tourMessages(locale) },
   };
 });

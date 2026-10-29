@@ -54,6 +54,8 @@ Env setup: copy `apps/web/.env.local.example` to `apps/web/.env.local`. It needs
 
 Pure catalogs/constants shared by web and (eventually) native: status enums, team/party/department definitions, tab/filter definitions for the tour UI. No DOM or React dependency by design.
 
+`i18n/tour.ts` is the single es/en dictionary for the tour module. `apps/web/src/i18n/request.ts` mounts it as the next-intl namespace `tour` (the rest of the app uses `apps/web/messages/*.json`), and `@gigbridge/data` reads the same dictionary for text it builds itself (day-sheet headers, pending items, mutation error messages) via an optional `locale` argument that defaults to `es`. The catalogs (`TABS`, `PARTIES`, `GROUP_MODES`, `BUCKETS`, …) only hold ids/icons; their labels live in the dictionary. next-intl isn't typed against messages, so a misspelled `t("tour.…")` key only shows up at runtime. The mock "Norte 2026" content is demo data and stays in Spanish.
+
 ### packages/data
 
 The shared data-access layer, split into two entry points on purpose:
@@ -64,7 +66,7 @@ The shared data-access layer, split into two entry points on purpose:
 Never import from `@gigbridge/data/server` in a client component; import the plain package entry instead.
 
 Key files:
-- `tour/repository.ts` — the `TourRepository` interface and `createTourRepository(source, { client, scope })`. Two sources: `"mock"` (`tour/mockData.ts`, the "Norte 2026" demo tour) and `"supabase"` (`tour/supabaseRepository.ts`, real tables). The Supabase source reads with whatever client it is given and does no permission checks of its own — pass the session client so RLS filters, never the service-role client. Scope is `{ tourId }` or `{ dateId }` (web routes only carry the date).
+- `tour/repository.ts` — the `TourRepository` interface and `createTourRepository(source, { client, scope, locale })`. Two sources: `"mock"` (`tour/mockData.ts`, the "Norte 2026" demo tour) and `"supabase"` (`tour/supabaseRepository.ts`, real tables). The Supabase source reads with whatever client it is given and does no permission checks of its own — pass the session client so RLS filters, never the service-role client. Scope is `{ tourId }` or `{ dateId }` (web routes only carry the date).
 - `tour/mutations.ts` — writes (guests, guest status, setlist order, date/venue notes) for the Supabase source. Same rule as the repository: session client, RLS decides; a silent RLS rejection (0 rows updated) becomes a user-facing message.
 - `tour/mappers.ts` — pure row → view-model mapping used by the Supabase source. View-model fields with no backing table yet come out empty rather than invented.
 - `tour/permissions.ts` — duplicates in application code the hotel-room visibility rule that also lives in Postgres (`can_view_hotel_room`, migration `0013`). Change both together. It exists because service-role code paths bypass RLS and the UI needs the reason text, not just a hidden field.

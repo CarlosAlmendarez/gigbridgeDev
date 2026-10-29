@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
 import { mapFiles } from "@gigbridge/data";
+import type { Locale } from "@gigbridge/config";
 import type { TourDate } from "@gigbridge/types";
 import { FileList } from "./FileList";
 
@@ -23,25 +25,23 @@ export function RiderView({ dateId, tourDate }: { dateId: string; tourDate: Tour
  */
 function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
   const { adoptDocument } = useTourUI();
-  const files = mapFiles(d.show.docs);
+  const t = useTranslations("tour");
+  const files = mapFiles(d.show.docs, useLocale() as Locale);
   const outdated = files.filter((f) => f.status === "revisar" && f.documentId);
 
   return (
     <div className="pt-6 max-w-[760px]">
       <Link className="btn btn-ghost min-h-10 pl-0" href={`/tour/${dateId}/dia`}>
         <Icon name="arrow-left" size={18} />
-        Hoja del día
+        {t("common.backToDay")}
       </Link>
       <div className="text-xs tracking-[0.1em] uppercase text-neutral-700 pt-2">{d.dateline}</div>
-      <h1 className="text-[40px] sm:text-[44px] my-1 mb-2 tracking-[-0.03em]">Documentos y versiones</h1>
-      <p className="text-base m-0 max-w-[60ch]">
-        Cada fecha usa una versión concreta de cada documento (rider, plano, patch list). Si el dueño publica una versión
-        más nueva, la fecha no cambia sola: aparece como <strong>Revisar</strong> hasta que un admin de la gira la adopte.
-      </p>
+      <h1 className="text-[40px] sm:text-[44px] my-1 mb-2 tracking-[-0.03em]">{t("rider.title")}</h1>
+      <p className="text-base m-0 max-w-[60ch]">{t.rich("rider.intro", { b: (chunks) => <strong>{chunks}</strong> })}</p>
 
       <div className="pt-6">
         {files.length === 0 ? (
-          <p className="text-sm text-neutral-700">Esta fecha todavía no tiene documentos ligados.</p>
+          <p className="text-sm text-neutral-700">{t("rider.empty")}</p>
         ) : (
           <FileList files={files} />
         )}
@@ -49,16 +49,14 @@ function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
 
       {outdated.length > 0 && (
         <div className="pt-6">
-          <h6 className="mb-1">Versiones nuevas disponibles</h6>
-          <p className="text-xs text-neutral-700 mb-3">
-            Al adoptar, esta fecha pasa a usar la versión vigente. Asegúrate de reenviarla a quien la necesite.
-          </p>
+          <h6 className="mb-1">{t("rider.newVersions")}</h6>
+          <p className="text-xs text-neutral-700 mb-3">{t("rider.newVersionsHelp")}</p>
           <div className="flex flex-col gap-2">
             {outdated.map((f) => (
               <div key={f.documentId} className="flex items-center gap-3">
                 <span className="flex-1 min-w-0 text-sm break-words">{f.name}</span>
                 <button type="button" className="btn btn-secondary min-h-10" onClick={() => adoptDocument(dateId, f.documentId!)}>
-                  Usar la versión vigente
+                  {t("rider.adopt")}
                 </button>
               </div>
             ))}
@@ -68,22 +66,23 @@ function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
 
       <div className="pt-6 text-xs text-neutral-700 flex flex-col gap-1">
         <div>
-          <span className="tag tag-accent">Vigente</span> la fecha usa la versión más reciente.
+          <span className="tag tag-accent">{t("fileStatus.vigente")}</span> {t("rider.legendCurrent")}
         </div>
         <div>
-          <span className="tag tag-accent-2">Revisar</span> hay una versión más nueva que la que usa esta fecha.
+          <span className="tag tag-accent-2">{t("fileStatus.revisar")}</span> {t("rider.legendReview")}
         </div>
         <div>
-          <span className="tag tag-outline">Pendiente de subir</span> el documento existe pero no tiene archivo todavía.
+          <span className="tag tag-outline">{t("fileStatus.nuevo")}</span> {t("rider.legendPending")}
         </div>
       </div>
     </div>
   );
 }
 
-/** Gira de ejemplo: la pantalla del prototipo de Claude Design. */
+/** Gira de ejemplo: la pantalla del prototipo de Claude Design (contenido de demo, solo en español). */
 function PrototypeRider({ dateId }: { dateId: string }) {
   const { adopted: adoptedState, adoptRider } = useTourUI();
+  const t = useTranslations("tour");
   const stale = true; // riderDesactualizado default
   const adopted = adoptedState === null ? !stale : adoptedState;
 
@@ -95,7 +94,7 @@ function PrototypeRider({ dateId }: { dateId: string }) {
     <div className="pt-6">
       <Link className="btn btn-ghost min-h-10 pl-0" href={`/tour/${dateId}/dia`}>
         <Icon name="arrow-left" size={18} />
-        Hoja del día
+        {t("common.backToDay")}
       </Link>
       <div className="text-xs tracking-[0.1em] uppercase text-neutral-700 pt-2">Rider técnico</div>
       <h1 className="text-[44px] my-1 mb-2 tracking-[-0.03em]">Las Bestias del Valle</h1>

@@ -9,6 +9,8 @@ import {
   moveTourVehicle,
   type ActionResult,
 } from "@gigbridge/data";
+import { getLocale } from "next-intl/server";
+import { tourMessages, type Locale } from "@gigbridge/config";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { tourDataSource } from "@/lib/tourRepository";
 
@@ -24,29 +26,32 @@ import { tourDataSource } from "@/lib/tourRepository";
  * cliente (ver CLAUDE.md, apps/web › api/v1).
  */
 
-async function run<T>(dateId: string, fn: (client: Awaited<ReturnType<typeof getSupabaseServerClient>>) => Promise<ActionResult<T>>) {
-  if (tourDataSource() !== "supabase") return { ok: false as const, message: "La gira de ejemplo no guarda cambios." };
-  const result = await fn(await getSupabaseServerClient());
+type Client = Awaited<ReturnType<typeof getSupabaseServerClient>>;
+
+async function run<T>(dateId: string, fn: (client: Client, locale: Locale) => Promise<ActionResult<T>>) {
+  const locale = (await getLocale()) as Locale;
+  if (tourDataSource() !== "supabase") return { ok: false as const, message: tourMessages(locale).errors.demoNoSave };
+  const result = await fn(await getSupabaseServerClient(), locale);
   if (result.ok) revalidatePath(`/tour/${dateId}`, "layout");
   return result;
 }
 
 export async function addGuestAction(dateId: string, name: string) {
-  return run(dateId, (client) => addGuestEntry(client, { tourDateId: dateId, name }));
+  return run(dateId, (client, locale) => addGuestEntry(client, { tourDateId: dateId, name }, locale));
 }
 
 export async function moveSetlistAction(dateId: string, fromIndex: number, toIndex: number) {
-  return run(dateId, (client) => moveSetlistSong(client, { tourDateId: dateId, fromIndex, toIndex }));
+  return run(dateId, (client, locale) => moveSetlistSong(client, { tourDateId: dateId, fromIndex, toIndex }, locale));
 }
 
 export async function addDateNoteAction(dateId: string, target: "tour_date" | "venue", body: string) {
-  return run(dateId, (client) => addDateNote(client, { tourDateId: dateId, target, body }));
+  return run(dateId, (client, locale) => addDateNote(client, { tourDateId: dateId, target, body }, locale));
 }
 
 export async function moveVehicleAction(dateId: string, fromIndex: number, toIndex: number) {
-  return run(dateId, (client) => moveTourVehicle(client, { tourDateId: dateId, fromIndex, toIndex }));
+  return run(dateId, (client, locale) => moveTourVehicle(client, { tourDateId: dateId, fromIndex, toIndex }, locale));
 }
 
 export async function adoptDocumentAction(dateId: string, documentId: string) {
-  return run(dateId, (client) => adoptCurrentDocumentVersion(client, { tourDateId: dateId, documentId }));
+  return run(dateId, (client, locale) => adoptCurrentDocumentVersion(client, { tourDateId: dateId, documentId }, locale));
 }

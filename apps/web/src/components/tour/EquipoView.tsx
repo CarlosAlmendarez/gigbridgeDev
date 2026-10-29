@@ -2,9 +2,10 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
-import { CONTACT_TYPES, EQUIPO_TABS, GROUP_MODES, GUEST_STATES, PARTIES } from "@gigbridge/config";
+import { CONTACT_TYPES, EQUIPO_TABS, GROUP_MODES, GUEST_STATES, type Locale } from "@gigbridge/config";
 import { buildGroups, guestTag } from "@gigbridge/data";
 import { chipClass } from "@/lib/ui";
 import type { EquipoTabId, ExternalContact, RosterPerson, TourDate, Vacancy } from "@gigbridge/types";
@@ -44,7 +45,11 @@ export function EquipoView({
     addGuest,
     setGuestStatus,
   } = useTourUI();
+  const t = useTranslations("tour");
+  const locale = useLocale() as Locale;
   const live = source === "supabase";
+  const teamName = (team: string) => (t.has(`teams.${team}`) ? t(`teams.${team}`) : team);
+  const accountLabel = { Todos: t("equipo.accountAll"), "Con cuenta": t("equipo.account"), Freelance: t("equipo.freelance") };
 
   // La ficha de una persona es un panel sobre la página: se cierra con Esc
   // y al salir de la pestaña Crew, para que no quede abierta en otra vista.
@@ -55,21 +60,24 @@ export function EquipoView({
     return () => window.removeEventListener("keydown", onKey);
   }, [crewSel, setCrewSel]);
 
-  const eq = EQUIPO_TABS.find((t) => t.id === tab) ?? EQUIPO_TABS[0];
+  const eqId = (EQUIPO_TABS.find((x) => x.id === tab) ?? EQUIPO_TABS[0]).id;
   const lensed = lens === "Todos" ? ROSTER : ROSTER.filter((p) => p.party === lens);
   const lensedVac = lens === "Todos" ? VACANCIES : VACANCIES.filter((v) => v.party === lens);
-  const modeDef = GROUP_MODES.find((m) => m.id === groupBy) ?? GROUP_MODES[0];
+  const modeId = (GROUP_MODES.find((m) => m.id === groupBy) ?? GROUP_MODES[0]).id;
 
-  const groupsRaw = buildGroups(lensed, lensedVac, groupBy);
+  const groupsRaw = buildGroups(lensed, lensedVac, groupBy, locale);
   const crewRoster = lensed.filter(
     (p) => accountFilter === "Todos" || (accountFilter === "Con cuenta" ? p.account : !p.account)
   );
-  const crewGroupsRaw = buildGroups(crewRoster, lensedVac, groupBy);
+  const crewGroupsRaw = buildGroups(crewRoster, lensedVac, groupBy, locale);
 
-  const lensName = lens === "Todos" ? `${summary.name} · toda la gira` : `${summary.name} · ${PARTIES[lens].name}`;
-  const equipoTitle = eq.title;
+  const lensName =
+    lens === "Todos"
+      ? t("equipo.lensAll", { tour: summary.name })
+      : t("equipo.lensParty", { tour: summary.name, party: t(`parties.${lens}.name`) });
+  const equipoTitle = t(`equipoTabs.${eqId}.label`);
   const showGroupModes = ["crew", "areas", "ubicaciones"].includes(tab);
-  const equipoHelp = eq.help;
+  const equipoHelp = t(`equipoTabs.${eqId}.help`);
 
   const crewDetail = tab === "crew" ? ROSTER.find((x) => x.name === crewSel) : undefined;
   const guests = guestsByDate[dateId] || [];
@@ -82,16 +90,16 @@ export function EquipoView({
           <h1 className="text-[40px] sm:text-[48px] my-1 mb-2 tracking-[-0.03em]">{equipoTitle}</h1>
           <p className="text-base m-0 max-w-[56ch] text-pretty">{equipoHelp}</p>
         </div>
-        <nav aria-label="Vistas de equipo" className="flex gap-1 flex-wrap">
-          {EQUIPO_TABS.map((t) => (
+        <nav aria-label={t("equipo.viewsLabel")} className="flex gap-1 flex-wrap">
+          {EQUIPO_TABS.map((x) => (
             <Link
-              key={t.id}
-              href={`/tour/${dateId}/equipo/${t.id}`}
-              aria-current={tab === t.id ? "page" : undefined}
+              key={x.id}
+              href={`/tour/${dateId}/equipo/${x.id}`}
+              aria-current={tab === x.id ? "page" : undefined}
               onClick={() => setCrewSel(null)}
-              className={chipClass(tab === t.id)}
+              className={chipClass(tab === x.id)}
             >
-              {t.label}
+              {t(`equipoTabs.${x.id}.label`)}
             </Link>
           ))}
         </nav>
@@ -99,35 +107,32 @@ export function EquipoView({
 
       <div className="flex flex-col gap-2 pt-4 pb-6">
         {showGroupModes && (
-          <FilterRow label="Agrupar">
+          <FilterRow label={t("equipo.filterGroup")}>
             {GROUP_MODES.map((g) => (
               <button key={g.id} type="button" onClick={() => setGroupBy(g.id)} aria-pressed={groupBy === g.id} className={chipClass(groupBy === g.id, true)}>
-                {g.label}
+                {t(`groupModes.${g.id}.label`)}
               </button>
             ))}
           </FilterRow>
         )}
-        {showGroupModes && <p className="text-xs text-neutral-700 m-0">{modeDef.help}</p>}
+        {showGroupModes && <p className="text-xs text-neutral-700 m-0">{t(`groupModes.${modeId}.help`)}</p>}
         {tab === "crew" && (
-          <FilterRow label="Mostrar">
+          <FilterRow label={t("equipo.filterShow")}>
             {(["Todos", "Con cuenta", "Freelance"] as const).map((f) => (
               <button key={f} type="button" onClick={() => setAccountFilter(f)} aria-pressed={accountFilter === f} className={chipClass(accountFilter === f, true)}>
-                {f}
+                {accountLabel[f]}
               </button>
             ))}
           </FilterRow>
         )}
         {tab === "crew" && (
-          <p className="text-xs text-neutral-700 m-0">
-            &quot;Con cuenta&quot;: entra a GigBridge con su usuario. &quot;Freelance&quot;: está en el roster pero no tiene
-            cuenta todavía. Toca a una persona para ver sus datos.
-          </p>
+          <p className="text-xs text-neutral-700 m-0">{t("equipo.accountHelp")}</p>
         )}
         {tab === "contactos" && (
-          <FilterRow label="Tipo">
+          <FilterRow label={t("equipo.filterType")}>
             {CONTACT_TYPES.map((f) => (
               <button key={f} type="button" onClick={() => setContactType(f)} aria-pressed={contactType === f} className={chipClass(contactType === f, true)}>
-                {f}
+                {t(`contactTypes.${f}`)}
               </button>
             ))}
           </FilterRow>
@@ -145,7 +150,7 @@ export function EquipoView({
                   <div className="font-heading font-semibold text-[19px] mr-auto">{g.name}</div>
                   <span className="text-xs text-neutral-700 tabular-nums">
                     {g.people.length}
-                    {g.vacancies.length ? ` · ${g.vacancies.length} vacantes` : ""}
+                    {g.vacancies.length ? ` · ${t("equipo.vacancies", { count: g.vacancies.length })}` : ""}
                   </span>
                 </div>
                 <div className="text-[13px] text-neutral-700 mt-0.5">{g.subtitle}</div>
@@ -163,7 +168,7 @@ export function EquipoView({
                         <div className="text-xs tracking-[0.06em] uppercase text-neutral-700">{c.role}</div>
                       </div>
                       <span className={c.account ? "tag tag-accent" : "tag tag-outline"}>
-                        {c.account ? "Con cuenta" : "Freelance"}
+                        {c.account ? t("equipo.account") : t("equipo.freelance")}
                       </span>
                     </button>
                   ))}
@@ -182,15 +187,15 @@ export function EquipoView({
             const open = groupOpen === g.key;
             const roles = g.people
               .map((p) => ({
-                role: `${p.role} · ${p.team}`,
+                role: `${p.role} · ${teamName(p.team)}`,
                 person: p.name,
                 real: true,
                 account: p.account,
               }))
               .concat(
                 g.vacancies.map((v) => ({
-                  role: `${v.role} · ${v.team}`,
-                  person: "Sin asignar",
+                  role: `${v.role} · ${teamName(v.team)}`,
+                  person: t("equipo.unassigned"),
                   real: false,
                   account: false,
                 }))
@@ -205,9 +210,9 @@ export function EquipoView({
                   <Icon name={g.icon} size={25} className="text-accent-700" />
                   <div className="flex-1 min-w-0">
                     <div className="font-heading font-semibold text-xl text-text">{g.name}</div>
-                    <div className="text-[13px] text-neutral-700">{n === 1 ? "1 persona" : `${n} personas`}</div>
+                    <div className="text-[13px] text-neutral-700">{t("equipo.people", { count: n })}</div>
                     <div className="text-[13px] text-accent-700">
-                      {chief ? `${modeDef.lead}: ${chief.name}` : "Sin responsable asignado"}
+                      {chief ? `${t(`groupModes.${modeId}.lead`)}: ${chief.name}` : t("equipo.noLead")}
                     </div>
                   </div>
                   <Icon name={open ? "caret-up" : "caret-down"} size={19} className="text-neutral-700" />
@@ -227,7 +232,7 @@ export function EquipoView({
                           </div>
                         </div>
                         <span className={!r.real ? "tag tag-neutral" : r.account ? "tag tag-accent" : "tag tag-outline"}>
-                          {!r.real ? "Vacante" : r.account ? "Con cuenta" : "Freelance"}
+                          {!r.real ? t("equipo.vacancy") : r.account ? t("equipo.account") : t("equipo.freelance")}
                         </span>
                       </div>
                     ))}
@@ -249,21 +254,21 @@ export function EquipoView({
                   <div className="flex items-baseline gap-2">
                     <Icon name={g.icon} size={20} className="text-accent-700" />
                     <div className="font-heading font-semibold text-xl mr-auto">{g.name}</div>
-                    <span className="text-xs text-neutral-700 tabular-nums">{g.people.length} personas</span>
+                    <span className="text-xs text-neutral-700 tabular-nums">{t("equipo.people", { count: g.people.length })}</span>
                   </div>
                   <table className="table mt-2">
                     <thead>
                       <tr>
-                        <th>Persona</th>
-                        <th>Rol</th>
-                        <th>Hotel</th>
-                        <th>Cuarto</th>
+                        <th>{t("equipo.colPerson")}</th>
+                        <th>{t("equipo.colRole")}</th>
+                        <th>{t("equipo.colHotel")}</th>
+                        <th>{t("equipo.colRoom")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {g.people.map((p) => {
                         const oculto = p.roomHidden ?? (p.roomScope === "self" || p.roomScope === "custom");
-                        const room = p.room === "n/a" ? "No viaja" : oculto ? "Oculto" : p.room;
+                        const room = p.room === "n/a" ? t("equipo.notTraveling") : oculto ? t("equipo.hidden") : p.room;
                         const roomClass = p.room === "n/a" ? "tag tag-neutral" : oculto ? "tag tag-accent-2" : "tag tag-accent";
                         return (
                           <tr key={p.name}>
@@ -284,9 +289,7 @@ export function EquipoView({
           <div className="flex gap-2 items-start text-[13px] text-neutral-700 pt-6">
             <Icon name="lock-key" size={18} className="text-accent-2-700" />
             <span>
-              {live
-                ? "\"Oculto\": no tienes permiso para ver ese cuarto, o la persona no tiene hospedaje en esta fecha. Cada quien ve el suyo; los admins de la gira ven todos y pueden dar acceso a otros."
-                : "\"Oculto\": cuartos privados de la persona o del artista. Solo los ve quien autorice el Production Manager."}
+              {t(live ? "equipo.hiddenHelpLive" : "equipo.hiddenHelpDemo")}
             </span>
           </div>
         </div>
@@ -297,7 +300,7 @@ export function EquipoView({
           {EXTERNAL_CONTACTS.concat(
             lensed.map((p: RosterPerson) => ({
               name: p.name,
-              role: `${p.role} · ${p.team}`,
+              role: `${p.role} · ${teamName(p.team)}`,
               type: "Gira",
               email: p.email,
               phone: p.tel.replace("+52", "+52 "),
@@ -318,7 +321,7 @@ export function EquipoView({
                       c.type === "Gira" ? "tag tag-accent" : c.type === "Proveedor" ? "tag tag-neutral" : "tag tag-outline"
                     }
                   >
-                    {c.type}
+                    {c.type in CONTACT_LABEL_KEYS ? t(`contactTypes.${c.type as (typeof CONTACT_TYPES)[number]}`) : c.type}
                   </span>
                 </div>
                 <div className="text-sm mt-2 leading-[1.6] break-words">
@@ -326,18 +329,18 @@ export function EquipoView({
                   <br />
                   {c.phone}
                 </div>
-                <div className="text-[13px] italic text-neutral-700 mt-[3px]">{c.note || "Sin notas"}</div>
+                <div className="text-[13px] italic text-neutral-700 mt-[3px]">{c.note || t("equipo.noNotes")}</div>
                 <div className="flex gap-2 mt-2">
                   {c.tel && (
-                    <a className="btn btn-secondary min-h-10" href={`tel:${c.tel.replace(/\s/g, "")}`} aria-label={`Llamar a ${c.name}`}>
+                    <a className="btn btn-secondary min-h-10" href={`tel:${c.tel.replace(/\s/g, "")}`} aria-label={t("common.callTo", { name: c.name })}>
                       <Icon name="phone" size={17} />
-                      Llamar
+                      {t("common.call")}
                     </a>
                   )}
                   {c.email && (
-                    <a className="btn btn-secondary min-h-10" href={`mailto:${c.email}`} aria-label={`Escribir a ${c.name}`}>
+                    <a className="btn btn-secondary min-h-10" href={`mailto:${c.email}`} aria-label={t("common.writeTo", { name: c.name })}>
                       <Icon name="envelope-simple" size={17} />
-                      Correo
+                      {t("common.email")}
                     </a>
                   )}
                 </div>
@@ -354,7 +357,7 @@ export function EquipoView({
                 {guests.filter((g) => g.status !== "denied").length}
               </div>
               <div className="text-sm text-neutral-700">
-                invitados en lista · {guests.filter((g) => g.status === "pending").length} por confirmar
+                {t("equipo.guestsInList", { pending: guests.filter((g) => g.status === "pending").length })}
               </div>
             </div>
             <form
@@ -367,23 +370,23 @@ export function EquipoView({
               <input
                 className="input min-h-11"
                 type="text"
-                placeholder="Nombre del invitado (ej. Ana Robles +1)"
-                aria-label="Nombre del invitado"
+                placeholder={t("equipo.guestPlaceholder")}
+                aria-label={t("equipo.guestLabel")}
                 value={guestDraft}
                 onChange={(e) => setGuestDraft(e.target.value)}
               />
-              <button type="submit" className="btn btn-primary min-h-11 min-w-11" aria-label="Agregar invitado">
+              <button type="submit" className="btn btn-primary min-h-11 min-w-11" aria-label={t("equipo.addGuest")}>
                 <Icon name="plus" size={17} />
               </button>
             </form>
             <p className="text-xs text-neutral-700 pt-2 pb-4 max-w-[460px]">
-              Cualquiera del equipo puede agregar invitados; entran como pendientes.
-              {live ? " Solo los admins de la gira pueden confirmarlos o rechazarlos." : ""}
+              {t("equipo.guestsHelp")}
+              {live ? ` ${t("equipo.guestsAdminOnly")}` : ""}
             </p>
-            {guests.length === 0 && <p className="text-sm text-neutral-700">Todavía no hay invitados para esta fecha.</p>}
+            {guests.length === 0 && <p className="text-sm text-neutral-700">{t("equipo.guestsEmpty")}</p>}
             <div className="flex flex-col">
               {guests.map((g, i) => {
-                const [tagClass] = guestTag(g.status);
+                const [tagClass] = guestTag(g.status, locale);
                 return (
                   <div key={g.id ?? i} className="flex items-center gap-2 py-2">
                     <div className="flex-1 min-w-0">
@@ -391,7 +394,7 @@ export function EquipoView({
                       <div className="text-xs text-neutral-700">{g.by}</div>
                     </div>
                     <label className="sr-only" htmlFor={`guest-status-${i}`}>
-                      Estado de {g.name}
+                      {t("equipo.guestStatusOf", { name: g.name })}
                     </label>
                     <select
                       id={`guest-status-${i}`}
@@ -401,7 +404,7 @@ export function EquipoView({
                     >
                       {GUEST_STATES.map((st) => (
                         <option key={st} value={st}>
-                          {guestTag(st)[1]}
+                          {t(`guestStatus.${st}`)}
                         </option>
                       ))}
                     </select>
@@ -411,13 +414,13 @@ export function EquipoView({
             </div>
           </div>
           <div>
-            <h6 className="mb-3">Toda la gira</h6>
+            <h6 className="mb-3">{t("equipo.wholeTour")}</h6>
             <table className="table">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Confirmados</th>
-                  <th>Pendientes</th>
+                  <th>{t("equipo.colDate")}</th>
+                  <th>{t("equipo.colConfirmed")}</th>
+                  <th>{t("equipo.colPending")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -428,7 +431,7 @@ export function EquipoView({
                     <tr key={x.id} className={x.id === dateId ? "font-semibold" : undefined}>
                       <td>
                         <Link href={`/tour/${x.id}/equipo/invitados`} className="underline-offset-2 hover:underline">
-                          {x.dow} {x.day} · {x.kind}
+                          {x.dow} {x.day} · {t(`kind.${x.kind}`)}
                         </Link>
                       </td>
                       <td className="tabular-nums">{list.filter((g) => g.status === "confirmed").length}</td>
@@ -455,7 +458,7 @@ export function EquipoView({
           >
             <div className="flex items-center gap-2">
               <span className="card-kicker mr-auto">{crewDetail.role}</span>
-              <button type="button" className="btn btn-ghost min-h-10" onClick={() => setCrewSel(null)} aria-label="Cerrar ficha">
+              <button type="button" className="btn btn-ghost min-h-10" onClick={() => setCrewSel(null)} aria-label={t("equipo.closeDetail")}>
                 <Icon name="x" size={16} />
               </button>
             </div>
@@ -463,16 +466,16 @@ export function EquipoView({
               {crewDetail.name}
             </div>
             <div className="flex flex-wrap gap-1">
-              <span className="tag tag-neutral">{PARTIES[crewDetail.party].label}</span>
-              <span className="tag tag-neutral">Equipo: {crewDetail.team}</span>
+              <span className="tag tag-neutral">{t(`parties.${crewDetail.party}.label`)}</span>
+              <span className="tag tag-neutral">{t("equipo.team", { team: teamName(crewDetail.team) })}</span>
               <span className={crewDetail.account ? "tag tag-accent" : "tag tag-outline"}>
-                {crewDetail.account ? "Con cuenta" : "Freelance"}
+                {crewDetail.account ? t("equipo.account") : t("equipo.freelance")}
               </span>
             </div>
             <div className="text-sm leading-[1.6] break-words">
-              {crewDetail.email || "Sin correo"}
+              {crewDetail.email || t("equipo.noEmail")}
               <br />
-              {crewDetail.tel || "Sin teléfono"}
+              {crewDetail.tel || t("equipo.noPhone")}
             </div>
             <p className="card-body">{crewDetail.scope}</p>
             <div className="card-meta">
@@ -483,13 +486,13 @@ export function EquipoView({
               {crewDetail.tel && (
                 <a className="btn btn-primary min-h-11" href={`tel:${crewDetail.tel}`}>
                   <Icon name="phone-call" size={17} />
-                  Llamar
+                  {t("common.call")}
                 </a>
               )}
               {crewDetail.email && (
                 <a className="btn btn-secondary min-h-11" href={`mailto:${crewDetail.email}`}>
                   <Icon name="envelope-simple" size={17} />
-                  Correo
+                  {t("common.email")}
                 </a>
               )}
             </div>
@@ -499,6 +502,8 @@ export function EquipoView({
     </div>
   );
 }
+
+const CONTACT_LABEL_KEYS: Record<string, true> = Object.fromEntries(CONTACT_TYPES.map((k) => [k, true]));
 
 function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -12,12 +12,21 @@ const sourceSerif = Source_Serif_4({
   style: ["normal", "italic"],
 });
 
-export const metadata: Metadata = {
-  title: "Norte 2026 · GigBridge Tour Manager",
-  description: "Administración de gira para Las Bestias del Valle · Norte 2026",
-  applicationName: "GigBridge",
-  appleWebApp: { capable: true, title: "GigBridge", statusBarStyle: "default" },
+// Antes decía "Norte 2026" (la gira de ejemplo) también con giras reales.
+const DESCRIPTION = {
+  es: "Administración de giras: hoja del día, equipo, documentos y logística.",
+  en: "Tour management: day sheets, crew, documents and logistics.",
 };
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await getLocale()) === "en" ? "en" : "es";
+  return {
+    title: "GigBridge Tour Manager",
+    description: DESCRIPTION[locale],
+    applicationName: "GigBridge",
+    appleWebApp: { capable: true, title: "GigBridge", statusBarStyle: "default" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#0088b0",

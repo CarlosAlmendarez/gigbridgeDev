@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
 import type { mapFiles } from "@gigbridge/data";
 
@@ -35,6 +36,7 @@ export function FileList({ files }: { files: MappedFile[] }) {
  * dice, en vez de fingir que subió algo.
  */
 export function UploadButton({ live, label, onUpload }: { live: boolean; label: string; onUpload: () => void }) {
+  const t = useTranslations("tour");
   return (
     <div>
       <button
@@ -46,7 +48,7 @@ export function UploadButton({ live, label, onUpload }: { live: boolean; label: 
         <Icon name="upload-simple" size={17} />
         {label}
       </button>
-      {live && <p className="text-xs text-neutral-700 mt-1">La carga de archivos todavía no está disponible.</p>}
+      {live && <p className="text-xs text-neutral-700 mt-1">{t("common.uploadUnavailable")}</p>}
     </div>
   );
 }

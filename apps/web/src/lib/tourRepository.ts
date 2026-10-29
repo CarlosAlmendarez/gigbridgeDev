@@ -1,6 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { createTourRepository, type TourDataSource, type TourRepository, type TourScope } from "@gigbridge/data";
+import { getLocale } from "next-intl/server";
+import type { Locale } from "@gigbridge/config";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 
 /**
@@ -20,7 +22,8 @@ const repositoryFor = cache(async (kind: "tour" | "date", id: string): Promise<T
   const source = tourDataSource();
   if (source === "mock") return createTourRepository("mock");
   const scope: TourScope = kind === "tour" ? { tourId: id } : { dateId: id };
-  return createTourRepository("supabase", { client: await getSupabaseServerClient(), scope });
+  const [client, locale] = await Promise.all([getSupabaseServerClient(), getLocale()]);
+  return createTourRepository("supabase", { client, scope, locale: locale as Locale });
 });
 
 export function getTourRepository(scope: TourScope): Promise<TourRepository> {

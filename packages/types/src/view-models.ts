@@ -134,10 +134,9 @@ export interface Provider {
   note: string;
 }
 
+// Catálogos de config: solo ids/íconos; sus textos están en @gigbridge/config i18n/tour.ts.
 export interface Bucket {
   id: ProviderBucket;
-  label: string;
-  help: string;
 }
 
 export interface RosterPerson {
@@ -171,10 +170,7 @@ export interface Vacancy {
 }
 
 export interface PartyDef {
-  label: string;
-  name: string;
   icon: string;
-  blurb: string;
 }
 
 export interface TeamDef {
@@ -184,21 +180,14 @@ export interface TeamDef {
 
 export interface GroupModeDef {
   id: GroupModeId;
-  label: string;
-  help: string;
-  lead: string;
 }
 
 export interface EquipoTabDef {
   id: EquipoTabId;
-  label: string;
-  title: string;
-  help: string;
 }
 
 export interface TabDef {
   id: "hoy" | "show" | "lugar" | "equipo" | "club";
-  label: string;
   icon: string;
 }
 

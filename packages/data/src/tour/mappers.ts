@@ -1,4 +1,4 @@
-import { TEAMS } from "@gigbridge/config";
+import { DEFAULT_LOCALE, TEAMS, TOUR_CALENDAR, fillText, tourMessages, type Locale } from "@gigbridge/config";
 import type {
   CrewMemberRow,
   DateKind,
@@ -13,7 +13,6 @@ import type {
   TourCrewRow,
   TourDate,
   TourDateRow,
-  TourMemberRole,
   TourNoteRow,
   VenueRow,
 } from "@gigbridge/types";
@@ -27,22 +26,22 @@ import type {
  * Campos del view model que todavía no tienen tabla (hitos del reloj fuera
  * de doors/show/labor, itinerario de vuelos, notas de proveedores) salen
  * vacíos en vez de inventarse.
+ *
+ * Todo texto que se arma aquí sale del diccionario de @gigbridge/config
+ * (i18n/tour.ts) en el idioma que pida quien llama; default español.
  */
-
-const DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 // `show_date` es una fecha de calendario sin hora: se interpreta a mediodía
 // UTC para que ninguna zona la mueva de día.
-function parseDay(isoDate: string) {
+function parseDay(isoDate: string, locale: Locale) {
+  const cal = TOUR_CALENDAR[locale];
   const d = new Date(`${isoDate}T12:00:00Z`);
-  return { dow: DOW[d.getUTCDay()], day: String(d.getUTCDate()), mon: MON[d.getUTCMonth()], year: d.getUTCFullYear() };
+  return { dow: cal.dow[d.getUTCDay()], day: String(d.getUTCDate()), mon: cal.mon[d.getUTCMonth()], year: d.getUTCFullYear() };
 }
 
-/** "Sáb 14 nov": la fecha corta que usan los orígenes de nota y los kickers. */
-export function shortDateLabel(isoDate: string): string {
-  const { dow, day, mon } = parseDay(isoDate);
-  return `${dow} ${day} ${mon}`;
+/** "Sáb 14 nov" / "Sat Nov 14": la fecha corta que usan los orígenes de nota y los kickers. */
+export function shortDateLabel(isoDate: string, locale: Locale = DEFAULT_LOCALE): string {
+  return fillText(TOUR_CALENDAR[locale].short, parseDay(isoDate, locale));
 }
 
 export function hhmm(time: string | null | undefined): string {
@@ -54,24 +53,6 @@ function mapsUrl(venue: Pick<VenueRow, "google_maps_url" | "address" | "city"> |
   const q = venue ? [venue.address, venue.city].filter(Boolean).join(", ") : fallback;
   return `https://maps.google.com/?q=${encodeURIComponent(q)}`;
 }
-
-const VENUE_TYPE_LABEL: Record<VenueRow["venue_type"], string> = {
-  live_venue: "Foro en vivo",
-  rehearsal_studio: "Sala de ensayo",
-  hybrid: "Foro y sala de ensayo",
-};
-
-const MANAGEMENT_LABEL: Record<VenueRow["management_type"], string> = {
-  independent: "Independiente",
-  managed: "Operado por promotora",
-  hybrid: "Mixto",
-};
-
-const CONTACT_VISIBILITY_LABEL: Record<VenueRow["contact_visibility"], string> = {
-  public: "Contactos públicos",
-  verified_pros: "Contactos solo para profesionales verificados",
-  tour_members: "Contactos solo para el equipo de la gira",
-};
 
 /** El departamento llega embebido cuando la consulta lo pide (getTourDate); en el listado no. */
 export type LaborCallWithDept = LaborCallRow & { department?: { name: string } | null };
@@ -101,13 +82,18 @@ export const EMPTY_EXTRAS: DateExtras = {
  * vencido, setlist sin confirmar, documento faltante, labor sin asignar").
  * Solo aplica a fechas con show; un día de viaje no tiene pendientes de show.
  */
-export function computeMissing(kind: DateKind, extras: Pick<DateExtras, "laborCalls" | "setlistSongs" | "docs">) {
+export function computeMissing(
+  kind: DateKind,
+  extras: Pick<DateExtras, "laborCalls" | "setlistSongs" | "docs">,
+  locale: Locale = DEFAULT_LOCALE
+) {
   if (kind === "Viaje") return { completion: 100, missing: [] as string[] };
+  const tx = tourMessages(locale).data;
   const checks: Array<[boolean, string]> = [
-    [(extras.setlistSongs ?? 0) > 0, "Setlist sin confirmar"],
-    [extras.laborCalls.length > 0, "Labor call sin capturar"],
-    [extras.docs.length > 0, "Sin documentos del venue referenciados"],
-    [!extras.docs.some((d) => d.status === "revisar"), "Documento desactualizado"],
+    [(extras.setlistSongs ?? 0) > 0, tx.missingSetlist],
+    [extras.laborCalls.length > 0, tx.missingLabor],
+    [extras.docs.length > 0, tx.missingDocs],
+    [!extras.docs.some((d) => d.status === "revisar"), tx.missingOutdated],
   ];
   const missing = checks.filter(([ok]) => !ok).map(([, label]) => label);
   return { completion: Math.round(((checks.length - missing.length) / checks.length) * 100), missing };
@@ -117,24 +103,28 @@ export function mapTourDate(
   row: TourDateRow,
   venue: VenueRow | null,
   position: { showNumber: number | null; totalShows: number },
-  extras: DateExtras = EMPTY_EXTRAS
+  extras: DateExtras = EMPTY_EXTRAS,
+  locale: Locale = DEFAULT_LOCALE
 ): TourDate {
-  const { dow, day, mon, year } = parseDay(row.show_date);
+  const tx = tourMessages(locale).data;
+  const parts = parseDay(row.show_date, locale);
+  const { dow, day } = parts;
   const kind: DateKind = !row.venue_id ? "Viaje" : row.status === "hold" ? "Hold" : "Show";
-  const dateline = `${dow} ${day} ${mon} ${year}`;
-  const { completion, missing } = computeMissing(kind, extras);
+  const dateline = fillText(TOUR_CALENDAR[locale].long, parts);
+  const shortDate = (iso: string) => shortDateLabel(iso, locale);
+  const { completion, missing } = computeMissing(kind, extras, locale);
 
   const sortedLabor = extras.laborCalls.slice().sort((a, b) => a.call_time.localeCompare(b.call_time));
   const clock = [
     ...sortedLabor.map((l) => ({ time: hhmm(l.call_time), label: `${l.position_title} · ${l.headcount}` })),
-    ...(row.doors_time ? [{ time: hhmm(row.doors_time), label: "Doors" }] : []),
-    ...(row.show_time ? [{ time: hhmm(row.show_time), label: "Show", accent: true }] : []),
+    ...(row.doors_time ? [{ time: hhmm(row.doors_time), label: tx.doors }] : []),
+    ...(row.show_time ? [{ time: hhmm(row.show_time), label: tx.show, accent: true }] : []),
   ];
 
   const hotel = extras.hotelRooms[0];
   const place = venue ? [venue.city, venue.state_region].filter(Boolean).join(", ") : "";
-  const capacity = venue?.capacity ? `${venue.capacity.toLocaleString("es-MX")} pax` : "";
-  const venueType = venue ? VENUE_TYPE_LABEL[venue.venue_type] : "Sin venue";
+  const capacity = venue?.capacity ? fillText(tx.capacity, { n: venue.capacity.toLocaleString(TOUR_CALENDAR[locale].number) }) : "";
+  const venueType = venue ? tx[`venueType_${venue.venue_type}`] : tx.noVenue;
   const crewLocal = sortedLabor.reduce((sum, l) => sum + l.headcount, 0);
 
   return {
@@ -145,14 +135,14 @@ export function mapTourDate(
     dateline,
     counter:
       kind === "Viaje"
-        ? "Día de viaje"
+        ? tx.travelDay
         : position.showNumber
-          ? `Show ${String(position.showNumber).padStart(2, "0")} / ${position.totalShows}`
-          : "Hold",
-    kicker: venue ? place : "Día de viaje",
-    title: venue ? venue.name : "Día de traslado",
+          ? fillText(tx.showCounter, { n: String(position.showNumber).padStart(2, "0"), total: position.totalShows })
+          : tx.hold,
+    kicker: venue ? place : tx.travelDay,
+    title: venue ? venue.name : tx.transferDay,
     subtitle: venue ? [[venueType, capacity].filter(Boolean).join(" · "), venue.address ?? ""].filter(Boolean).join("\n") : row.notes ?? "",
-    mapUrl: mapsUrl(venue, "Ruta del día"),
+    mapUrl: mapsUrl(venue, tx.routeOfDay),
     // Los contactos del venue todavía no tienen tabla: sin teléfono directo.
     tel: "",
     telLabel: "",
@@ -162,37 +152,37 @@ export function mapTourDate(
     clock,
     clockNote: venue ? row.notes ?? "" : "",
     hotel: hotel?.hotel_name ?? "",
-    hotelMeta: hotel?.check_in ? `Check-in ${shortDateLabel(hotel.check_in)}` : "",
+    hotelMeta: hotel?.check_in ? fillText(tx.checkIn, { date: shortDate(hotel.check_in) }) : "",
     hotelMap: hotel ? `https://maps.google.com/?q=${encodeURIComponent(hotel.hotel_name)}` : "",
-    venueRider: venue ? `${venue.name} — expediente técnico` : "Sin venue en esta fecha",
+    venueRider: venue ? fillText(tx.venueRider, { venue: venue.name }) : tx.noVenueOnDate,
     venueRiderNote: venue?.stage_notes ?? "",
-    advanceLine: row.advance_date ? `Avance cerrado el ${shortDateLabel(row.advance_date)}` : "Avance pendiente",
+    advanceLine: row.advance_date ? fillText(tx.advanceClosed, { date: shortDate(row.advance_date) }) : tx.advancePending,
     // Vuelos y traslados todavía no tienen tabla. Los vehículos de la gira
     // NO van aquí: son el "Orden de carga" (listVehicles), no un itinerario.
     itinerary: [],
     venue: {
-      kicker: venue ? place : "Día de viaje",
-      name: venue?.name ?? "Sin recinto",
+      kicker: venue ? place : tx.travelDay,
+      name: venue?.name ?? tx.noPlace,
       address: venue?.address ?? "",
       type: venueType,
-      capacity: venue?.capacity ? String(venue.capacity) : "—",
-      visibility: venue ? CONTACT_VISIBILITY_LABEL[venue.contact_visibility] : "No aplica",
-      management: venue ? MANAGEMENT_LABEL[venue.management_type] : "",
-      mapUrl: mapsUrl(venue, "Ruta del día"),
+      capacity: venue?.capacity ? venue.capacity.toLocaleString(TOUR_CALENDAR[locale].number) : "—",
+      visibility: venue ? tx[`visibility_${venue.contact_visibility}`] : tx.notApplicable,
+      management: venue ? tx[`management_${venue.management_type}`] : "",
+      mapUrl: mapsUrl(venue, tx.routeOfDay),
       site: venue?.website_url ?? "",
-      specs: venue ? venueSpecs(venue) : [],
+      specs: venue ? venueSpecs(venue, locale) : [],
       contacts: [],
       files: extras.venueDocs,
       notes: extras.venueNotes,
       providerRule: "",
     },
     show: {
-      kicker: `${dateline} · ${kind === "Viaje" ? "día de viaje" : venue?.name ?? ""}`,
+      kicker: `${dateline} · ${kind === "Viaje" ? tx.travelDayLower : venue?.name ?? ""}`,
       headline: [
-        { value: hhmm(sortedLabor[0]?.call_time) || "—", label: "Load-in" },
-        { value: hhmm(row.doors_time) || "—", label: "Doors" },
-        { value: hhmm(row.show_time) || "—", label: "Show" },
-        { value: crewLocal ? String(crewLocal) : "—", label: "Crew local" },
+        { value: hhmm(sortedLabor[0]?.call_time) || "—", label: tx.loadIn },
+        { value: hhmm(row.doors_time) || "—", label: tx.doors },
+        { value: hhmm(row.show_time) || "—", label: tx.show },
+        { value: crewLocal ? String(crewLocal) : "—", label: tx.crewLocal },
       ],
       montaje: sortedLabor.map((l) => ({
         time: hhmm(l.call_time),
@@ -202,19 +192,20 @@ export function mapTourDate(
       docs: extras.docs,
       notes: extras.dateNotes,
     },
-    guestKicker: `${kind === "Viaje" ? "Día de viaje" : kind} · ${day} ${mon}`,
+    guestKicker: `${kind === "Viaje" ? tx.travelDay : kind === "Hold" ? tx.hold : tx.show} · ${shortDate(row.show_date)}`,
   };
 }
 
-function venueSpecs(v: VenueRow): { k: string; v: string }[] {
+function venueSpecs(v: VenueRow, locale: Locale): { k: string; v: string }[] {
+  const tx = tourMessages(locale).data;
   const specs: Array<[string, string | null]> = [
-    ["Escenario", v.stage_width_m && v.stage_depth_m ? `${v.stage_width_m} × ${v.stage_depth_m} m` : null],
-    ["Consola FOH", v.has_foh_console ? [v.foh_console_brand, v.foh_console_model].filter(Boolean).join(" ") || "Sí" : null],
-    ["PA", v.has_pa ? [v.pa_brand, v.pa_model].filter(Boolean).join(" ") || "Sí" : null],
-    ["Monitores de piso", v.floor_monitors_count ? String(v.floor_monitors_count) : null],
-    ["Corriente", `${v.power_voltage} V · ${v.power_outlets_stage} contactos en escenario`],
-    ["Andén de carga", v.has_loading_dock ? "Sí" : "No"],
-    ["Curfew", v.curfew_time ? hhmm(v.curfew_time) : null],
+    [tx.specStage, v.stage_width_m && v.stage_depth_m ? `${v.stage_width_m} × ${v.stage_depth_m} m` : null],
+    [tx.specFoh, v.has_foh_console ? [v.foh_console_brand, v.foh_console_model].filter(Boolean).join(" ") || tx.yes : null],
+    [tx.specPa, v.has_pa ? [v.pa_brand, v.pa_model].filter(Boolean).join(" ") || tx.yes : null],
+    [tx.specMonitors, v.floor_monitors_count ? String(v.floor_monitors_count) : null],
+    [tx.specPower, fillText(tx.specPowerValue, { volts: v.power_voltage, outlets: v.power_outlets_stage })],
+    [tx.specDock, v.has_loading_dock ? tx.yes : tx.no],
+    [tx.specCurfew, v.curfew_time ? hhmm(v.curfew_time) : null],
   ];
   return specs.filter((s): s is [string, string] => Boolean(s[1])).map(([k, val]) => ({ k, v: val }));
 }
@@ -224,9 +215,9 @@ export type NoteWithAuthor = Pick<TourNoteRow, "body" | "created_at"> & {
 };
 
 /** meta = "Autor · mié 28 oct", como el "Phil G. · hace 2 h" del prototipo pero sin tiempo relativo. */
-export function mapNote(row: NoteWithAuthor, origen?: string): NoteEntry {
+export function mapNote(row: NoteWithAuthor, origen?: string, locale: Locale = DEFAULT_LOCALE): NoteEntry {
   const author = Array.isArray(row.author) ? row.author[0] : row.author;
-  const meta = [author?.display_name, shortDateLabel(row.created_at.slice(0, 10))].filter(Boolean).join(" · ");
+  const meta = [author?.display_name, shortDateLabel(row.created_at.slice(0, 10), locale)].filter(Boolean).join(" · ");
   return { body: row.body, meta, ...(origen ? { origen } : {}) };
 }
 
@@ -236,13 +227,6 @@ export function docStatus(currentVersionId: string | null, seenVersionId: string
   if (seenVersionId === undefined || seenVersionId === currentVersionId) return "vigente";
   return "revisar";
 }
-
-const MEMBER_ROLE_SCOPE: Record<TourMemberRole, string> = {
-  admin: "Admin de la gira: ve y edita todo.",
-  dept_head: "Jefe de departamento.",
-  member: "Miembro de la gira.",
-  guest: "Invitado: acceso limitado a la gira.",
-};
 
 export interface RosterRow extends Pick<TourCrewRow, "id" | "crew_member_id" | "member_role" | "reports_to" | "party" | "status"> {
   crew_member: Pick<CrewMemberRow, "full_name" | "phone" | "email" | "user_id"> | null;
@@ -260,7 +244,8 @@ function toParty(party: string | null): PartyKey {
  * `rooms` son solo los cuartos que la RLS (0013) le deja ver a quien
  * consulta: si no hay fila no se sabe si existe, y se muestra como oculto.
  */
-export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[]): RosterPerson[] {
+export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[], locale: Locale = DEFAULT_LOCALE): RosterPerson[] {
+  const tx = tourMessages(locale).data;
   const byId = new Map(rows.map((r) => [r.id, r]));
   const children = new Map<string | null, RosterRow[]>();
   for (const r of rows) {
@@ -278,7 +263,7 @@ export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[]): R
   visit(null, 0);
 
   return ordered.map(({ row, depth }) => {
-    const name = row.crew_member?.full_name ?? "Sin nombre";
+    const name = row.crew_member?.full_name ?? tx.noName;
     const boss = row.reports_to ? byId.get(row.reports_to)?.crew_member?.full_name : null;
     const room = rooms.find((h) => h.crew_member_id === row.crew_member_id);
     const dept = row.role?.department?.name ?? "";
@@ -292,8 +277,8 @@ export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[]): R
       team: dept in TEAMS ? dept : "Management",
       depth,
       account: Boolean(row.crew_member?.user_id),
-      reports: boss ? `Reporta a ${boss}` : "Raíz de la gira",
-      scope: MEMBER_ROLE_SCOPE[row.member_role],
+      reports: boss ? fillText(tx.reportsTo, { name: boss }) : tx.tourRoot,
+      scope: tx[`role_${row.member_role}`],
       tel: row.crew_member?.phone ?? "",
       email: row.crew_member?.email ?? "",
       hotel: room?.hotel_name ?? "",

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Locale } from "@gigbridge/config";
 import type {
   ExternalContact,
   Guest,
@@ -86,11 +87,12 @@ export function createMockTourRepository(): TourRepository {
 
 export function createTourRepository(
   source: TourDataSource,
-  options?: { client: SupabaseClient; scope: TourScope }
+  options?: { client: SupabaseClient; scope: TourScope; locale?: Locale }
 ): TourRepository {
+  // La gira mock es contenido de demo escrito en español: no se traduce.
   if (source === "mock") return createMockTourRepository();
   if (!options) throw new Error('La fuente "supabase" necesita un cliente y un scope de gira');
-  return createSupabaseTourRepository(options.client, options.scope);
+  return createSupabaseTourRepository(options.client, options.scope, options.locale);
 }
 
 export { createSupabaseTourRepository, findOpeningTourDateId, listMyTours, type MyTour };
