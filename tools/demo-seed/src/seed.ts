@@ -181,6 +181,22 @@ async function cleanup() {
   const { data: crew } = tourIds.length ? await db.from("tour_crew").select("crew_member_id").in("tour_id", tourIds) : { data: [] };
   const crewIds = (crew ?? []).map((c) => c.crew_member_id);
 
+  // Documentos subidos a fechas desde la app (owner_type 'tour_date'): no
+  // cuelgan por FK de la gira, así que se borran a mano con sus archivos.
+  const { data: tourDates } = tourIds.length ? await db.from("tour_dates").select("id").in("tour_id", tourIds) : { data: [] };
+  const dateIds = (tourDates ?? []).map((d) => d.id as string);
+  if (dateIds.length) {
+    for (const id of dateIds) {
+      const { data: folders } = await db.storage.from("documents").list(`tour_date/${id}`);
+      for (const folder of folders ?? []) {
+        const { data: files } = await db.storage.from("documents").list(`tour_date/${id}/${folder.name}`);
+        const paths = (files ?? []).map((f) => `tour_date/${id}/${folder.name}/${f.name}`);
+        if (paths.length) await db.storage.from("documents").remove(paths);
+      }
+    }
+    await db.from("documents").delete().eq("owner_type", "tour_date").in("owner_id", dateIds);
+  }
+
   // Usuario → profile → band → tour → todo lo de la gira (cascade).
   for (const id of userIds) await db.auth.admin.deleteUser(id);
   if (crewIds.length) await db.from("crew_members").delete().in("id", crewIds);
@@ -432,6 +448,64 @@ async function seed() {
       .insert([
         { user_id: phil, tour_date_id: d12, remind_at: "2026-11-14T14:00:00Z", message: "Alarma: llamar al promotor de CDMX" },
         { user_id: phil, tour_date_id: d12, remind_at: "2026-11-14T23:00:00Z", message: "15 min antes de la salida del hotel" },
+      ])
+      .select("id")
+  );
+
+  // Directorio, contactos del venue, vacantes e itinerario (0016). Mismas
+  // llaves en cada fila por lo de los inserts múltiples de PostgREST.
+  await must(
+    "venue_contacts",
+    db
+      .from("venue_contacts")
+      .insert([
+        { venue_id: venueId.cantera, name: "Rocío Tamez", role: "Producción del foro", email: "rocio@forocantera.mx", phone: "+52 81 1842 0117", sort_order: 1 },
+        { venue_id: venueId.cantera, name: "Héctor Lozano", role: "Jefe de seguridad", email: "seguridad@forocantera.mx", phone: "+52 81 1842 0131", sort_order: 2 },
+        { venue_id: venueId.barranca, name: "Mariana Ochoa", role: "Gerente de producción", email: "produccion@salonbarranca.mx", phone: "+52 33 3615 0042", sort_order: 1 },
+      ])
+      .select("id")
+  );
+  await must(
+    "tour_contacts",
+    db
+      .from("tour_contacts")
+      .insert([
+        { tour_id: tour.id, contact_type: "promoter", name: "Gabriel Treviño", role: "Promotor regional · Norte", email: "gabriel@ocesa-norte.mx", phone: "+52 81 1842 0150", note: "Firma los settlements de MTY y GDL." },
+        { tour_id: tour.id, contact_type: "hotel", name: "Recepción Ancira", role: "Hotel Ancira Centro", email: "grupos@hotelancira.mx", phone: "+52 81 8150 7000", note: "Bloque de 22 cuartos a nombre de Phil G." },
+        { tour_id: tour.id, contact_type: "vendor", name: "Fletes del Cerro", role: "Transporte de crew", email: "rafa@fletesdelcerro.mx", phone: "+52 81 1842 0106", note: null },
+      ])
+      .select("id")
+  );
+  await must(
+    "tour_providers",
+    db
+      .from("tour_providers")
+      .insert([
+        { tour_id: tour.id, venue_id: venueId.cantera, bucket: "recinto", name: "Sonido Sierra", service: "Audio", contact_name: "Iván Sierra", city: "Monterrey", email: "ivan@sonidosierra.mx", phone: "+52 81 1842 0160", note: "Único proveedor de PA autorizado por el foro." },
+        { tour_id: tour.id, venue_id: venueId.cantera, bucket: "local", name: "Lumen Norte", service: "Iluminación", contact_name: "Karla Esquivel", city: "Monterrey", email: "karla@lumennorte.mx", phone: "+52 81 1842 0119", note: "Renta de emergencia: 2 h de respuesta." },
+        { tour_id: tour.id, venue_id: venueId.cantera, bucket: "vetado", name: "Grúas Express", service: "Rigging", contact_name: null, city: "Monterrey", email: null, phone: null, note: "Vetado por el foro tras un incidente en 2025." },
+        { tour_id: tour.id, venue_id: null, bucket: "general", name: "Backline Norte", service: "Backline", contact_name: "Nacho Peña", city: "Monterrey", email: "renta@backlinenorte.mx", phone: "+52 81 1842 0170", note: "Cotiza cualquier fecha de la gira." },
+      ])
+      .select("id")
+  );
+  await must(
+    "tour_vacancies",
+    db
+      .from("tour_vacancies")
+      .insert([
+        { tour_id: tour.id, role_title: "Técnico de monitores", department_id: deptId.get("Monitores") ?? null, party: "B" },
+        { tour_id: tour.id, role_title: "Asistente de vestuario", department_id: deptId.get("Vestuario") ?? null, party: "A" },
+      ])
+      .select("id")
+  );
+  await must(
+    "tour_travel_legs",
+    db
+      .from("tour_travel_legs")
+      .insert([
+        { tour_date_id: dateId["2026-11-13"], kind: "ground", title: "Van de crew Saltillo → Monterrey", departs_at: "09:00", details: "8 pax · chofer Rafa Ponce", note: "Parada de comida en Ramos Arizpe, 30 min.", sort_order: 1 },
+        { tour_date_id: d12, kind: "ground", title: "Van al aeropuerto", departs_at: "05:15", details: "Lobby del Ancira · chofer Beto Salinas", note: "Sale el día 15.", sort_order: 1 },
+        { tour_date_id: d12, kind: "flight", title: "MTY → GDL · VivaAerobús 2218", departs_at: "07:40", details: "6 pax · conf. QK4RT2", note: "Backline viaja por tierra con el Dockmaster.", sort_order: 2 },
       ])
       .select("id")
   );

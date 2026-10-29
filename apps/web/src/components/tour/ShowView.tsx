@@ -6,7 +6,7 @@ import { useTourUI } from "@/context/TourUIContext";
 import { mapFiles } from "@gigbridge/data";
 import type { Locale } from "@gigbridge/config";
 import type { TourDate } from "@gigbridge/types";
-import { FileList, UploadButton } from "./FileList";
+import { FileList, LiveUploadForm, UploadButton } from "./FileList";
 
 export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: TourDate }) {
   const {
@@ -19,6 +19,9 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
     setShowNoteDraft,
     addShowNote,
     addShowFile,
+    canAdmin,
+    canContribute,
+    canUpload,
   } = useTourUI();
   const t = useTranslations("tour");
   const locale = useLocale() as Locale;
@@ -78,7 +81,9 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
             <p className="text-xs text-neutral-700 mb-3">
               {setlist.length === 0
                 ? t("show.setlistEmpty")
-                : t("show.setlistHelp") + (live ? ` ${t("show.setlistAdminOnly")}` : "")}
+                : !canAdmin
+                  ? t("show.setlistReadOnly")
+                  : t("show.setlistHelp") + (live ? ` ${t("show.setlistAdminOnly")}` : "")}
             </p>
             {setlist.map((s, i) => (
               <div key={i} className="flex items-center gap-2 py-[5px]">
@@ -88,6 +93,8 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
                   <div className="text-xs text-neutral-700">{s.cue}</div>
                 </div>
                 <span className="flex-none text-xs text-neutral-700 tabular-nums">{s.len}</span>
+                {canAdmin && (
+                <>
                 <button
                   type="button"
                   className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
@@ -106,6 +113,8 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
                 >
                   <Icon name="arrow-down" size={15} />
                 </button>
+                </>
+                )}
               </div>
             ))}
           </div>
@@ -120,7 +129,11 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
             <p className="text-sm text-neutral-700 mb-2">{t("show.docsEmpty")}</p>
           )}
           <FileList files={showFiles} />
-          <UploadButton live={live} label={t("show.upload")} onUpload={() => addShowFile(dateId)} />
+          {!live ? (
+            <UploadButton label={t("show.upload")} onUpload={() => addShowFile(dateId)} />
+          ) : (
+            canUpload && <LiveUploadForm dateId={dateId} />
+          )}
 
           <div className="pt-6">
             <h6 className="mb-1">{t("show.notes")}</h6>
@@ -132,6 +145,8 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
                 <div className="text-xs text-neutral-700 mt-0.5">{n.meta}</div>
               </div>
             ))}
+            {!canContribute && <p className="text-xs text-neutral-700 mt-2">{t("dia.notesReadOnly")}</p>}
+            {canContribute && (
             <form
               className="flex gap-2 mt-2"
               onSubmit={(e) => {
@@ -151,6 +166,7 @@ export function ShowView({ dateId, tourDate: d }: { dateId: string; tourDate: To
                 <Icon name="plus" size={17} />
               </button>
             </form>
+            )}
           </div>
         </div>
       </div>

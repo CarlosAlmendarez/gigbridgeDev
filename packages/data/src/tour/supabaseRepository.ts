@@ -2,7 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_LOCALE, fillText, tourMessages, type Locale } from "@gigbridge/config";
 import type {
   DocFile,
+  ExternalContact,
   Guest,
+  Provider,
+  Reminder,
+  TourContactRow,
+  TourProviderRow,
+  TourSummary,
+  TourTravelLegRow,
+  VenueContactRow,
   GuestStatus,
   SetlistRow,
   HotelRoomAssignmentRow,
@@ -18,6 +26,7 @@ import {
   mapNote,
   mapRoster,
   mapTourDate,
+  mapVacancy,
   type DateExtras,
   type LaborCallWithDept,
   shortDateLabel,
@@ -239,7 +248,7 @@ export function createSupabaseTourRepository(
       const date = dates.find((d) => d.id === dateId);
       if (!date) return null;
 
-      const [labor, rooms, notes, docs] = await Promise.all([
+      const [labor, rooms, notes, docs, legs, venueContacts] = await Promise.all([
         client.from("labor_calls").select("*, department:departments(name)").eq("tour_date_id", dateId),
         client.from("hotel_room_assignments").select("*").eq("tour_date_id", dateId),
         client
@@ -249,7 +258,13 @@ export function createSupabaseTourRepository(
           .in("entity_type", ["tour_date", "venue"])
           .order("created_at", { ascending: false }),
         fetchDocs(dateId, date.venue_id),
+        client.from("tour_travel_legs").select("*").eq("tour_date_id", dateId),
+        date.venue_id
+          ? client.from("venue_contacts").select("*").eq("venue_id", date.venue_id)
+          : Promise.resolve({ data: [], error: null }),
       ]);
+      if (legs.error) fail("tour_travel_legs", legs.error);
+      if (venueContacts.error) fail("venue_contacts", venueContacts.error);
       if (labor.error) fail("labor_calls", labor.error);
       if (rooms.error) fail("hotel_room_assignments", rooms.error);
       if (notes.error) fail("tour_notes", notes.error);
@@ -264,6 +279,8 @@ export function createSupabaseTourRepository(
         venueNotes: noteRows
           .filter((n) => n.entity_type === "venue" && n.entity_id === date.venue_id)
           .map((n) => mapNote(n, date.venue?.name, locale)),
+        travelLegs: (legs.data ?? []) as TourTravelLegRow[],
+        venueContacts: (venueContacts.data ?? []) as VenueContactRow[],
       };
       return mapTourDate(date, date.venue, positions(dates)(date), extras, locale);
     },
@@ -356,12 +373,21 @@ export function createSupabaseTourRepository(
       });
     },
 
-    async getTourSummary() {
+    async getTourSummary(): Promise<TourSummary | null> {
       const tourId = await resolveTourId();
       if (!tourId) return null;
-      const [tour, count] = await Promise.all([
+      const { data: auth } = await client.auth.getUser();
+      const [tour, count, isAdmin, mine] = await Promise.all([
         client.from("tours").select("id, name, band:bands(name)").eq("id", tourId).maybeSingle(),
         client.from("tour_dates").select("id", { count: "exact", head: true }).eq("tour_id", tourId),
+        // is_tour_admin cubre también al creador de la gira, que no siempre está en tour_crew.
+        client.rpc("is_tour_admin", { p_tour_id: tourId }),
+        client
+          .from("tour_crew")
+          .select("member_role, crew_member:crew_members!inner(user_id)")
+          .eq("tour_id", tourId)
+          .eq("crew_member.user_id", auth.user?.id ?? "00000000-0000-0000-0000-000000000000")
+          .maybeSingle(),
       ]);
       if (tour.error) fail("tours", tour.error);
       if (!tour.data) return null;
@@ -371,6 +397,7 @@ export function createSupabaseTourRepository(
         id: tour.data.id as string,
         name: tour.data.name as string,
         bandLine: [band, fillText(n === 1 ? tx.datesOne : tx.datesOther, { n })].filter(Boolean).join(" · "),
+        viewerRole: isAdmin.data === true ? "admin" : ((mine.data?.member_role as TourSummary["viewerRole"]) ?? "guest"),
       };
     },
 
@@ -390,9 +417,111 @@ export function createSupabaseTourRepository(
       }));
     },
 
-    // Sin tabla todavía (ver header de repository.ts).
-    listVacancies: async () => [],
-    listProviders: async () => [],
-    listExternalContacts: async () => [],
+    async listVacancies() {
+      const tourId = await resolveTourId();
+      if (!tourId) return [];
+      const { data, error } = await client
+        .from("tour_vacancies")
+        .select("role_title, party, department:departments(name)")
+        .eq("tour_id", tourId)
+        .order("created_at");
+      if (error) fail("tour_vacancies", error);
+      return ((data ?? []) as unknown as Array<{ role_title: string; party: string | null; department: { name: string } | { name: string }[] | null }>).map(
+        (v) => mapVacancy({ ...v, department: first(v.department) })
+      );
+    },
+
+    /** Proveedores generales de la gira más los ligados al venue de la fecha del scope. */
+    async listProviders(): Promise<Provider[]> {
+      const tourId = await resolveTourId();
+      if (!tourId) return [];
+      let venueId: string | null = null;
+      if ("dateId" in scope && UUID_RE.test(scope.dateId)) {
+        const { data } = await client.from("tour_dates").select("venue_id").eq("id", scope.dateId).maybeSingle();
+        venueId = (data?.venue_id as string | null | undefined) ?? null;
+      }
+      let query = client.from("tour_providers").select("*").eq("tour_id", tourId);
+      query = venueId ? query.or(`venue_id.is.null,venue_id.eq.${venueId}`) : query.is("venue_id", null);
+      const { data, error } = await query.order("name");
+      if (error) fail("tour_providers", error);
+      return ((data ?? []) as TourProviderRow[]).map((p) => ({
+        name: p.name,
+        service: p.service,
+        contact: p.contact_name ?? "",
+        city: p.city ?? "",
+        // "—" es como el mock marca "sin correo" (ClubView lo muestra así).
+        email: p.email || "—",
+        tel: p.phone ?? "",
+        bucket: p.bucket,
+        note: p.note ?? "",
+      }));
+    },
+
+    /** Directorio externo (tour_contacts) más los contactos de los venues de la gira. */
+    async listExternalContacts(): Promise<ExternalContact[]> {
+      const tourId = await resolveTourId();
+      if (!tourId) return [];
+      const [contacts, venues] = await Promise.all([
+        client.from("tour_contacts").select("*").eq("tour_id", tourId).order("name"),
+        client.from("tour_dates").select("venue_id, venue:venues(name)").eq("tour_id", tourId).not("venue_id", "is", null),
+      ]);
+      if (contacts.error) fail("tour_contacts", contacts.error);
+      if (venues.error) fail("tour_dates", venues.error);
+
+      const venueName = new Map(
+        ((venues.data ?? []) as unknown as Array<{ venue_id: string; venue: { name: string } | { name: string }[] | null }>).map((d) => [
+          d.venue_id,
+          first(d.venue)?.name ?? "",
+        ])
+      );
+      const vc = venueName.size
+        ? await client.from("venue_contacts").select("*").in("venue_id", [...venueName.keys()]).order("sort_order")
+        : { data: [], error: null };
+      if (vc.error) fail("venue_contacts", vc.error);
+
+      // Llaves de CONTACT_TYPES (config): la UI las traduce.
+      const TYPE: Record<TourContactRow["contact_type"], string> = { promoter: "Promotor", hotel: "Hotel", vendor: "Proveedor", other: "Otro" };
+      return [
+        ...((vc.data ?? []) as VenueContactRow[]).map((c) => ({
+          name: c.name,
+          role: [c.role, venueName.get(c.venue_id)].filter(Boolean).join(" · "),
+          type: "Recinto",
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+          tel: c.phone ?? "",
+          note: "",
+        })),
+        ...((contacts.data ?? []) as TourContactRow[]).map((c) => ({
+          name: c.name,
+          role: c.role ?? "",
+          type: TYPE[c.contact_type],
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+          tel: c.phone ?? "",
+          note: c.note ?? "",
+        })),
+      ];
+    },
+
+    /** Recordatorios propios (la RLS solo deja ver los del usuario) aún activos, con la hora local de la fecha. */
+    async listMyReminders(dateId: string): Promise<Reminder[]> {
+      if (!UUID_RE.test(dateId)) return [];
+      const [rows, tz] = await Promise.all([
+        client.from("reminders").select("id, remind_at, message").eq("tour_date_id", dateId).is("dismissed_at", null).order("remind_at"),
+        client.rpc("tour_date_timezone", { p_tour_date_id: dateId }),
+      ]);
+      if (rows.error) fail("reminders", rows.error);
+      const fmt = new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+        timeZone: (tz.data as string | null) ?? "America/Mexico_City",
+      });
+      return ((rows.data ?? []) as Array<{ id: string; remind_at: string; message: string }>).map((r) => ({
+        id: r.id,
+        at: fmt.format(new Date(r.remind_at)),
+        message: r.message,
+      }));
+    },
   };
 }

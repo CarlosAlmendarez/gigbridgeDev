@@ -182,3 +182,83 @@ export async function adoptCurrentDocumentVersion(
   if (!data?.length) return { ok: false, message: e.docAdminOnly };
   return { ok: true, result: null };
 }
+
+/**
+ * Recordatorio personal a una hora local de la fecha ("HH:MM"). La
+ * conversión a timestamptz con la zona de la fecha la hace add_tour_reminder
+ * (0016) en SQL.
+ */
+export async function addTourReminder(
+  client: SupabaseClient,
+  input: { tourDateId: string; at: string; message: string },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<{ id: string }>> {
+  const e = tourMessages(locale).errors;
+  const message = input.message.trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.at) || !message) return { ok: false, message: e.reminderInvalid };
+  const { data, error } = await client.rpc("add_tour_reminder", {
+    p_tour_date_id: input.tourDateId,
+    p_local_time: input.at,
+    p_message: message,
+  });
+  if (error) return { ok: false, message: e.reminderFailed };
+  if (!data) return { ok: false, message: e.dateNotFound };
+  return { ok: true, result: { id: data as string } };
+}
+
+/** Descarta (no borra) un recordatorio propio. La RLS no deja tocar los ajenos. */
+export async function dismissTourReminder(
+  client: SupabaseClient,
+  input: { reminderId: string },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<null>> {
+  const e = tourMessages(locale).errors;
+  const { data } = await client
+    .from("reminders")
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq("id", input.reminderId)
+    .is("dismissed_at", null)
+    .select("id");
+  if (!data?.length) return { ok: false, message: e.reminderNotFound };
+  return { ok: true, result: null };
+}
+
+/**
+ * Alta de gira para un manager: la gira (a nombre de su banda; 0015 lo
+ * exige) y su primera fecha, para que se pueda abrir de inmediato. Quien la
+ * crea queda como admin implícito (is_tour_admin cubre tours.created_by).
+ * Los ids se generan aquí porque la RLS de lectura aún no ve la fila en el
+ * mismo INSERT ... RETURNING.
+ */
+export async function createTour(
+  client: SupabaseClient,
+  input: { name: string; startDate: string },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<{ tourId: string; dateId: string }>> {
+  const e = tourMessages(locale).errors;
+  const name = input.name.trim();
+  if (!name) return { ok: false, message: e.tourNameEmpty };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) return { ok: false, message: e.tourDateInvalid };
+
+  const profileId = await currentProfileId(client);
+  if (!profileId) return { ok: false, message: e.tourCreateFailed };
+  const { data: band } = await client.from("bands").select("id").eq("profile_id", profileId).limit(1).maybeSingle();
+  if (!band) return { ok: false, message: e.tourNoBand };
+
+  const tourId = crypto.randomUUID();
+  const dateId = crypto.randomUUID();
+  const { error } = await client.from("tours").insert({
+    id: tourId,
+    band_id: band.id,
+    name,
+    status: "planning",
+    start_date: input.startDate,
+    created_by: profileId,
+  });
+  if (error) return { ok: false, message: e.tourCreateFailed };
+  const { error: dateError } = await client
+    .from("tour_dates")
+    .insert({ id: dateId, tour_id: tourId, show_date: input.startDate, status: "hold" });
+  if (dateError) return { ok: false, message: e.tourCreateFailed };
+  return { ok: true, result: { tourId, dateId } };
+}

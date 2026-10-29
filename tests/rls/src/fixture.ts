@@ -15,6 +15,7 @@ import { PUBLISHABLE_KEY, SECRET_KEY, SUPABASE_URL } from "./env";
  *   soundB    member, rol en depto Sonido, party A
  *   lights    member, rol en depto Luces,  party B
  *   guest     member_role = 'guest', sin rol operativo
+ *   soundHead member_role = 'dept_head', rol en depto Sonido, party C
  *   outsider  autenticado, sin relación con la gira
  *
  * Cuartos de hotel (uno por scope):
@@ -24,7 +25,7 @@ import { PUBLISHABLE_KEY, SECRET_KEY, SUPABASE_URL } from "./env";
  *   roomCustomLights  de lights, scope 'custom' + grant a persona soundA
  */
 
-export type ActorName = "owner" | "coAdmin" | "soundA" | "soundB" | "lights" | "guest" | "outsider";
+export type ActorName = "owner" | "coAdmin" | "soundA" | "soundB" | "lights" | "guest" | "soundHead" | "outsider";
 type CrewActor = Exclude<ActorName, "owner" | "outsider">;
 
 export interface Actor {
@@ -43,6 +44,7 @@ export interface Fixture {
   venueId: string;
   tourDateId: string;
   travelDateId: string;
+  departments: { sonido: string; luces: string };
   rooms: { selfSoundA: string; deptSoundB: string; tourLights: string; customLights: string };
   cleanup: () => Promise<void>;
 }
@@ -103,7 +105,7 @@ export async function createFixture(): Promise<Fixture> {
       return { userId: user.id, profileId: profile.id, client };
     }
 
-    const names: ActorName[] = ["owner", "coAdmin", "soundA", "soundB", "lights", "guest", "outsider"];
+    const names: ActorName[] = ["owner", "coAdmin", "soundA", "soundB", "lights", "guest", "soundHead", "outsider"];
     const users = Object.fromEntries(
       await Promise.all(names.map(async (n) => [n, await makeUser(n)] as const))
     ) as Record<ActorName, Omit<Actor, "crewMemberId" | "tourCrewId">>;
@@ -182,6 +184,7 @@ export async function createFixture(): Promise<Fixture> {
       soundB: { member_role: "member", role_id: rolSonido.id, party: "A" },
       lights: { member_role: "member", role_id: rolLuces.id, party: "B" },
       guest: { member_role: "guest", role_id: null, party: null },
+      soundHead: { member_role: "dept_head", role_id: rolSonido.id, party: "C" },
     };
 
     const actors = {
@@ -262,6 +265,7 @@ export async function createFixture(): Promise<Fixture> {
       venueId: venue.id,
       tourDateId: showDate.id,
       travelDateId: travelDate.id,
+      departments: { sonido: sonido.id, luces: luces.id },
       rooms,
       cleanup,
     };

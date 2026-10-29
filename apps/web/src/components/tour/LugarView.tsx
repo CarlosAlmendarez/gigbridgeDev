@@ -19,6 +19,7 @@ export function LugarView({ dateId, tourDate: d }: { dateId: string; tourDate: T
     setVenueNoteDraft,
     addVenueNote,
     addVenueFile,
+    canContribute,
   } = useTourUI();
   const t = useTranslations("tour");
   const locale = useLocale() as Locale;
@@ -103,9 +104,11 @@ export function LugarView({ dateId, tourDate: d }: { dateId: string; tourDate: T
                     <div className="text-xs tracking-[0.06em] uppercase text-neutral-700">{ct.role}</div>
                     <div className="text-[13px] mt-0.5 break-words">{ct.email}</div>
                   </div>
-                  <a className="btn btn-secondary btn-icon w-10 h-10" href={ct.tel} aria-label={t("common.callTo", { name: ct.name })}>
-                    <Icon name="phone" size={17} />
-                  </a>
+                  {ct.tel && (
+                    <a className="btn btn-secondary btn-icon w-10 h-10" href={ct.tel} aria-label={t("common.callTo", { name: ct.name })}>
+                      <Icon name="phone" size={17} />
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
@@ -129,7 +132,11 @@ export function LugarView({ dateId, tourDate: d }: { dateId: string; tourDate: T
           </div>
           {venueFiles.length === 0 && <p className="text-sm text-neutral-700 mb-2">{t("lugar.filesEmpty")}</p>}
           <FileList files={venueFiles} />
-          <UploadButton live={live} label={t("lugar.upload")} onUpload={() => addVenueFile(dateId)} />
+          {live ? (
+            <p className="text-xs text-neutral-700">{t("lugar.uploadByVenue")}</p>
+          ) : (
+            <UploadButton label={t("lugar.upload")} onUpload={() => addVenueFile(dateId)} />
+          )}
 
           <div className="pt-6">
             <h6 className="mb-1">{t("lugar.notes")}</h6>
@@ -141,6 +148,8 @@ export function LugarView({ dateId, tourDate: d }: { dateId: string; tourDate: T
                 <div className="text-xs text-neutral-700 mt-0.5">{n.meta}</div>
               </div>
             ))}
+            {!canContribute && <p className="text-xs text-neutral-700 mt-2">{t("dia.notesReadOnly")}</p>}
+            {canContribute && (
             <form
               className="flex gap-2 mt-2"
               onSubmit={(e) => {
@@ -160,6 +169,7 @@ export function LugarView({ dateId, tourDate: d }: { dateId: string; tourDate: T
                 <Icon name="plus" size={17} />
               </button>
             </form>
+            )}
           </div>
         </div>
       </div>

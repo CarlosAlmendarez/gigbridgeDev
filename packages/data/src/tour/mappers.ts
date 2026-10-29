@@ -14,6 +14,9 @@ import type {
   TourDate,
   TourDateRow,
   TourNoteRow,
+  TourTravelLegRow,
+  Vacancy,
+  VenueContactRow,
   VenueRow,
 } from "@gigbridge/types";
 
@@ -65,6 +68,15 @@ export interface DateExtras {
   venueDocs: DocFile[];
   dateNotes: NoteEntry[];
   venueNotes: NoteEntry[];
+  travelLegs?: TourTravelLegRow[];
+  venueContacts?: VenueContactRow[];
+}
+
+const LEG_ICON: Record<TourTravelLegRow["kind"], string> = { flight: "airplane-takeoff", ground: "van", other: "map-pin-line" };
+
+/** "+52 81 1842 0100" → "tel:+528118420100" (el formato que el mock ya trae en VenueContact.tel). */
+function telHref(phone: string | null): string {
+  return phone ? `tel:${phone.replace(/[^\d+]/g, "")}` : "";
 }
 
 export const EMPTY_EXTRAS: DateExtras = {
@@ -126,6 +138,7 @@ export function mapTourDate(
   const capacity = venue?.capacity ? fillText(tx.capacity, { n: venue.capacity.toLocaleString(TOUR_CALENDAR[locale].number) }) : "";
   const venueType = venue ? tx[`venueType_${venue.venue_type}`] : tx.noVenue;
   const crewLocal = sortedLabor.reduce((sum, l) => sum + l.headcount, 0);
+  const mainContact = (extras.venueContacts ?? []).slice().sort((x, y) => x.sort_order - y.sort_order).find((c) => c.phone);
 
   return {
     id: row.id,
@@ -143,10 +156,10 @@ export function mapTourDate(
     title: venue ? venue.name : tx.transferDay,
     subtitle: venue ? [[venueType, capacity].filter(Boolean).join(" · "), venue.address ?? ""].filter(Boolean).join("\n") : row.notes ?? "",
     mapUrl: mapsUrl(venue, tx.routeOfDay),
-    // Los contactos del venue todavía no tienen tabla: sin teléfono directo.
-    tel: "",
-    telLabel: "",
-    contactLine: "",
+    // "Llamar a …" del day sheet: el primer contacto del venue con teléfono.
+    tel: telHref(mainContact?.phone ?? null),
+    telLabel: mainContact?.role ?? "",
+    contactLine: mainContact ? [mainContact.name, mainContact.role].filter(Boolean).join(" · ") : "",
     completion,
     missing,
     clock,
@@ -157,9 +170,17 @@ export function mapTourDate(
     venueRider: venue ? fillText(tx.venueRider, { venue: venue.name }) : tx.noVenueOnDate,
     venueRiderNote: venue?.stage_notes ?? "",
     advanceLine: row.advance_date ? fillText(tx.advanceClosed, { date: shortDate(row.advance_date) }) : tx.advancePending,
-    // Vuelos y traslados todavía no tienen tabla. Los vehículos de la gira
-    // NO van aquí: son el "Orden de carga" (listVehicles), no un itinerario.
-    itinerary: [],
+    // Vuelos y traslados (0016). Los vehículos de la gira NO van aquí: son
+    // el "Orden de carga" (listVehicles), no un itinerario.
+    itinerary: (extras.travelLegs ?? [])
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order || (a.departs_at ?? "").localeCompare(b.departs_at ?? ""))
+      .map((leg) => ({
+        icon: LEG_ICON[leg.kind],
+        title: leg.departs_at ? `${leg.title} · ${hhmm(leg.departs_at)}` : leg.title,
+        meta: leg.details ?? "",
+        note: leg.note ?? "",
+      })),
     venue: {
       kicker: venue ? place : tx.travelDay,
       name: venue?.name ?? tx.noPlace,
@@ -171,7 +192,10 @@ export function mapTourDate(
       mapUrl: mapsUrl(venue, tx.routeOfDay),
       site: venue?.website_url ?? "",
       specs: venue ? venueSpecs(venue, locale) : [],
-      contacts: [],
+      contacts: (extras.venueContacts ?? [])
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((c) => ({ name: c.name, role: c.role ?? "", email: c.email ?? "", tel: telHref(c.phone) })),
       files: extras.venueDocs,
       notes: extras.venueNotes,
       providerRule: "",
@@ -233,7 +257,7 @@ export interface RosterRow extends Pick<TourCrewRow, "id" | "crew_member_id" | "
   role: { name: string; department: { name: string } | null } | null;
 }
 
-function toParty(party: string | null): PartyKey {
+export function toParty(party: string | null): PartyKey {
   const p = party?.trim().toUpperCase();
   return p === "A" || p === "B" ? p : "C";
 }
@@ -289,4 +313,10 @@ export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[], lo
       note: "",
     };
   });
+}
+
+/** Vacante (0016) → view model. `team` cae en "Management" fuera del catálogo, igual que mapRoster. */
+export function mapVacancy(row: { role_title: string; party: string | null; department: { name: string } | null }): Vacancy {
+  const dept = row.department?.name ?? "";
+  return { role: row.role_title, party: toParty(row.party), team: dept in TEAMS ? dept : "Management" };
 }

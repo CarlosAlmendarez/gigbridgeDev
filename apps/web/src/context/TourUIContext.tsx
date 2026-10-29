@@ -3,11 +3,13 @@
 import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { DEFAULT_REMINDERS, type NotaEntry, type TourDataSource } from "@gigbridge/data";
+import type { NotaEntry, TourDataSource } from "@gigbridge/data";
 import {
   addDateNoteAction,
   addGuestAction,
+  addReminderAction,
   adoptDocumentAction,
+  dismissReminderAction,
   moveSetlistAction,
   moveVehicleAction,
 } from "@/lib/actions/tour";
@@ -69,7 +71,11 @@ export interface TourServerData {
   notas: NotaEntry[];
   summary: TourSummary;
   vehicles: VehicleLoad[];
+  /** Recordatorios propios de la fecha del layout. */
+  reminders: Reminder[];
 }
+
+type ViewerRole = NonNullable<TourSummary["viewerRole"]>;
 
 function initialState(data: TourServerData): TourUIState {
   return {
@@ -83,7 +89,7 @@ function initialState(data: TourServerData): TourUIState {
     clockDone: {},
     setlist: data.setlist.map((s) => ({ ...s })),
     vehicles: data.vehicles.map((v) => ({ ...v })),
-    reminders: DEFAULT_REMINDERS.map((r) => ({ ...r })),
+    reminders: data.reminders.map((r) => ({ ...r })),
     notas: data.notas.map((n) => ({ ...n })),
     guestsByDate: Object.fromEntries(
       Object.entries(data.guestsByDate).map(([k, v]) => [k, v.map((g) => ({ ...g }))])
@@ -107,6 +113,16 @@ interface TourUIContextValue extends TourUIState {
   /** "supabase": los cambios se guardan y los ve el equipo; "mock": demo en memoria. */
   source: TourDataSource;
   summary: TourSummary;
+  /** Rol en la gira (0015). La gira de ejemplo se comporta como admin. */
+  viewerRole: ViewerRole;
+  /** Admin: reordena, confirma invitados, adopta versiones. */
+  canAdmin: boolean;
+  /** No invitado: agrega invitados y notas. */
+  canContribute: boolean;
+  /** Admin o jefe de departamento: sube documentos de la fecha. */
+  canUpload: boolean;
+  /** Sube un documento a la fecha (solo con datos reales). Devuelve si salió bien. */
+  uploadDocument: (dateId: string, form: FormData) => Promise<boolean>;
   toggleNight: () => void;
   setLens: (lens: "Todos" | PartyKey) => void;
   setGroupBy: (mode: GroupModeId) => void;
@@ -146,6 +162,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
   const router = useRouter();
   const t = useTranslations("tour");
   const live = data.source === "supabase";
+  const viewerRole: ViewerRole = data.summary.viewerRole ?? "admin";
 
   /**
    * Escritura contra Supabase: corre la acción en una transición, limpia el
@@ -187,9 +204,29 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
 
   const value: TourUIContextValue = {
     ...state,
-    ...(live ? { guestsByDate: data.guestsByDate, setlist: data.setlist, notas: data.notas, vehicles: data.vehicles } : {}),
+    ...(live
+      ? { guestsByDate: data.guestsByDate, setlist: data.setlist, notas: data.notas, vehicles: data.vehicles, reminders: data.reminders }
+      : {}),
     source: data.source,
     summary: data.summary,
+    viewerRole,
+    canAdmin: viewerRole === "admin",
+    canContribute: viewerRole !== "guest",
+    canUpload: viewerRole === "admin" || viewerRole === "dept_head",
+    uploadDocument: async (dateId, form) => {
+      try {
+        const res = await fetch(`/api/v1/tour-dates/${dateId}/documents`, { method: "POST", body: form });
+        if (res.ok) {
+          router.refresh();
+          return true;
+        }
+        const { error } = (await res.json().catch(() => ({}))) as { error?: unknown };
+        setState((st) => ({ ...st, syncError: typeof error === "string" ? error : t("sync.saveFailed") }));
+      } catch {
+        setState((st) => ({ ...st, syncError: t("sync.offline") }));
+      }
+      return false;
+    },
     toggleNight: () => setState((st) => ({ ...st, night: !st.night })),
     setLens: (lens) =>
       setState((st) => ({
@@ -221,9 +258,18 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
     },
     adoptRider: () => setState((st) => ({ ...st, adopted: true })),
     adoptDocument: (dateId, documentId) => sync(() => adoptDocumentAction(dateId, documentId)),
-    dismissReminder: (index) =>
-      setState((st) => ({ ...st, reminders: st.reminders.filter((_, i) => i !== index) })),
-    addReminder: (r) => setState((st) => ({ ...st, reminders: st.reminders.concat([r]) })),
+    dismissReminder: (index) => {
+      if (live) {
+        const id = data.reminders[index]?.id;
+        if (id) sync(() => dismissReminderAction(data.dateId, id));
+        return;
+      }
+      setState((st) => ({ ...st, reminders: st.reminders.filter((_, i) => i !== index) }));
+    },
+    addReminder: (r) => {
+      if (live) return sync(() => addReminderAction(data.dateId, r.at, r.message));
+      setState((st) => ({ ...st, reminders: st.reminders.concat([r]).sort((a, b) => a.at.localeCompare(b.at)) }));
+    },
     setNotaDraft: (notaDraft) => setState((st) => ({ ...st, notaDraft })),
     addNota: (origen, dateId) => {
       if (live) {

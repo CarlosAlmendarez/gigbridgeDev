@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { DEFAULT_DATE_ID, listMyTours } from "@gigbridge/data";
 import { Icon } from "@/components/Icon";
+import { NewTourForm } from "@/components/dashboard/NewTourForm";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { tourDataSource } from "@/lib/tourRepository";
 
@@ -57,7 +58,9 @@ export default async function DashboardPage() {
         {!demo && tours.length === 0 && (
           <div className="card p-6 text-center">
             <h3 className="font-semibold">{t("noToursTitle")}</h3>
-            <p className="mt-1 text-sm text-neutral-700">{t("noToursDesc")}</p>
+            <p className="mt-1 text-sm text-neutral-700">
+              {profile.role === "manager" ? t("noToursManagerDesc") : t("noToursDesc")}
+            </p>
           </div>
         )}
 
@@ -95,6 +98,16 @@ export default async function DashboardPage() {
           );
         })}
       </section>
+
+      {profile.role === "manager" && !demo && (
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="font-heading text-xl font-semibold">{t("newTourTitle")}</h2>
+            <p className="text-sm text-neutral-700">{t("newTourDesc")}</p>
+          </div>
+          <NewTourForm />
+        </section>
+      )}
 
       {profile.role === "venue" && (
         <section className="flex flex-col gap-3">

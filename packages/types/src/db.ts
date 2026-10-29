@@ -774,3 +774,68 @@ export interface TourDateDocumentRefRow {
   seen_version_id: string | null;
   created_at: string;
 }
+
+// ── 0015_tour_member_roles: sin columnas nuevas (solo helpers y policies) ──
+
+// ── 0016_tour_directory ──────────────────────────────────────────
+
+/** Contactos del venue; su lectura respeta venues.contact_visibility (el crew de la gira siempre los ve). */
+export interface VenueContactRow {
+  id: string;
+  venue_id: string;
+  name: string;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface TourContactRow {
+  id: string;
+  tour_id: string;
+  contact_type: "promoter" | "hotel" | "vendor" | "other";
+  name: string;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface TourProviderRow {
+  id: string;
+  tour_id: string;
+  venue_id: string | null;
+  bucket: "recinto" | "local" | "general" | "vetado";
+  name: string;
+  service: string;
+  contact_name: string | null;
+  city: string | null;
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface TourVacancyRow {
+  id: string;
+  tour_id: string;
+  role_title: string;
+  department_id: string | null;
+  party: string | null;
+  created_at: string;
+}
+
+/** Vuelos y traslados de una fecha (Itinerario de viaje). */
+export interface TourTravelLegRow {
+  id: string;
+  tour_date_id: string;
+  kind: "flight" | "ground" | "other";
+  title: string;
+  departs_at: string | null;
+  details: string | null;
+  note: string | null;
+  sort_order: number;
+  created_at: string;
+}

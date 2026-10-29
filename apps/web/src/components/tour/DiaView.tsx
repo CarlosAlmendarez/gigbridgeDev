@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
 import { useTourUI } from "@/context/TourUIContext";
-import { REMINDER_PRESETS, buildGroups, fileTag } from "@gigbridge/data";
+import { buildGroups, fileTag } from "@gigbridge/data";
 import { chipClass } from "@/lib/ui";
 import type { Locale } from "@gigbridge/config";
 import type { RosterPerson, TourDate } from "@gigbridge/types";
@@ -25,7 +26,11 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
     setNotaDraft,
     addNota,
     adopted: adoptedState,
+    canAdmin,
+    canContribute,
   } = useTourUI();
+  const [reminderAt, setReminderAt] = useState("");
+  const [reminderText, setReminderText] = useState("");
   const t = useTranslations("tour");
   const locale = useLocale() as Locale;
   const live = source === "supabase";
@@ -141,24 +146,28 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
                   <div className="font-heading font-semibold text-[15px] text-pretty">{v.label}</div>
                   {v.meta && <div className="text-xs text-neutral-700 text-pretty">{v.meta}</div>}
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
-                  onClick={() => moveVehicle(i, -1)}
-                  disabled={i === 0}
-                  aria-label={t("common.moveUp", { name: v.label })}
-                >
-                  <Icon name="arrow-up" size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
-                  onClick={() => moveVehicle(i, 1)}
-                  disabled={i === vehicles.length - 1}
-                  aria-label={t("common.moveDown", { name: v.label })}
-                >
-                  <Icon name="arrow-down" size={15} />
-                </button>
+                {canAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
+                      onClick={() => moveVehicle(i, -1)}
+                      disabled={i === 0}
+                      aria-label={t("common.moveUp", { name: v.label })}
+                    >
+                      <Icon name="arrow-up" size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-icon flex-none w-9 h-9 disabled:opacity-40"
+                      onClick={() => moveVehicle(i, 1)}
+                      disabled={i === vehicles.length - 1}
+                      aria-label={t("common.moveDown", { name: v.label })}
+                    >
+                      <Icon name="arrow-down" size={15} />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -269,11 +278,12 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
 
         {live ? <LiveDocsCard dateId={dateId} d={d} /> : <PrototypeRiderCards dateId={dateId} d={d} adoptedState={adoptedState} />}
 
-        {!live && (
-          <div className="pt-6">
-            <h6 className="mb-2">{t("dia.reminders")}</h6>
+        <div className="pt-6">
+            <h6 className="mb-1">{t("dia.reminders")}</h6>
+            <p className="text-xs text-neutral-700 mb-2">{t("dia.remindersHelp")}</p>
+            {reminders.length === 0 && <p className="text-sm text-neutral-700">{t("dia.remindersEmpty")}</p>}
             {reminders.map((r, i) => (
-              <div key={i} className="flex items-center gap-3 py-[5px]">
+              <div key={r.id ?? i} className="flex items-center gap-3 py-[5px]">
                 <Icon name="alarm" size={19} className="text-accent-700" />
                 <div className="flex-1 min-w-0">
                   <div className="font-heading font-semibold text-[15px] tabular-nums">{r.at}</div>
@@ -290,19 +300,49 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
               </div>
             ))}
             <div className="flex flex-wrap gap-1 mt-2">
-              {REMINDER_PRESETS.map((p, i) => (
+              {REMINDER_PRESETS.map((p) => (
                 <button
-                  key={i}
+                  key={p.key}
                   type="button"
-                  onClick={() => addReminder({ at: p.at, message: p.message })}
+                  onClick={() => addReminder({ at: p.at, message: t(`dia.${p.key}Msg`) })}
                   className={chipClass(false, true)}
                 >
-                  {p.label}
+                  {t(`dia.${p.key}`)}
                 </button>
               ))}
             </div>
+            <form
+              className="flex gap-2 mt-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!reminderAt || !reminderText.trim()) return;
+                addReminder({ at: reminderAt, message: reminderText.trim() });
+                setReminderAt("");
+                setReminderText("");
+              }}
+            >
+              <input
+                className="input min-h-[42px] w-[110px] flex-none"
+                type="time"
+                aria-label={t("dia.reminderTime")}
+                value={reminderAt}
+                onChange={(e) => setReminderAt(e.target.value)}
+                required
+              />
+              <input
+                className="input min-h-[42px]"
+                type="text"
+                aria-label={t("dia.reminderText")}
+                placeholder={t("dia.reminderPlaceholder")}
+                value={reminderText}
+                onChange={(e) => setReminderText(e.target.value)}
+                required
+              />
+              <button type="submit" className="btn btn-primary min-h-[42px] min-w-[42px]" aria-label={t("dia.addReminder")}>
+                <Icon name="plus" size={17} />
+              </button>
+            </form>
           </div>
-        )}
 
         <div className="pt-6">
           <h6 className="mb-1">{t("dia.notesTitle")}</h6>
@@ -315,6 +355,8 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
               <div className="text-xs text-neutral-700 mt-0.5">{n.meta}</div>
             </div>
           ))}
+          {!canContribute && <p className="text-xs text-neutral-700 mt-2">{t("dia.notesReadOnly")}</p>}
+          {canContribute && (
           <form
             className="flex gap-2 mt-2"
             onSubmit={(e) => {
@@ -334,11 +376,19 @@ export function DiaView({ dateId, tourDate: d, roster }: { dateId: string; tourD
               <Icon name="paper-plane-tilt" size={17} />
             </button>
           </form>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+// Sugerencias de recordatorio: hora local de la fecha; el texto sale del diccionario (dia.<key>, dia.<key>Msg).
+const REMINDER_PRESETS = [
+  { key: "presetAlarm", at: "06:00" },
+  { key: "presetSoundcheck", at: "17:30" },
+  { key: "presetLoadout", at: "00:15" },
+] as const;
 
 /** Con datos reales: documentos de la fecha y su vigencia (referencia en vivo, 0007). */
 function LiveDocsCard({ dateId, d }: { dateId: string; d: TourDate }) {

@@ -531,12 +531,6 @@ export const DEFAULT_REMINDERS = [
   { at: "17:00", message: "15 min antes de la salida del hotel" },
 ];
 
-export const REMINDER_PRESETS = [
-  { label: "+ Alarma 06:00", at: "06:00", message: "Alarma: van al aeropuerto" },
-  { label: "+ 30 min antes del soundcheck", at: "17:30", message: "Junta rápida con el Stage Manager" },
-  { label: "+ Load-out", at: "00:15", message: "Avisar al Dockmaster" },
-];
-
 export interface NotaEntry {
   origen: string;
   body: string;

@@ -37,7 +37,7 @@ describe("tours / tour_dates / tour_crew: lectura solo para miembros", () => {
   it.each(MEMBERS)("%s ve la gira, sus fechas y su crew", async (name) => {
     expect(await visibleIds(name, "tours", "id", f.tourId)).toHaveLength(1);
     expect(await visibleIds(name, "tour_dates", "tour_id", f.tourId)).toHaveLength(2);
-    expect(await visibleIds(name, "tour_crew", "tour_id", f.tourId)).toHaveLength(5);
+    expect(await visibleIds(name, "tour_crew", "tour_id", f.tourId)).toHaveLength(6);
   });
 
   it.each(["outsider", "anon"] as const)("%s no ve nada de la gira", async (name) => {

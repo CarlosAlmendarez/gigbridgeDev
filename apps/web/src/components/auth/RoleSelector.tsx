@@ -16,7 +16,7 @@ const ROLES: RoleOption[] = [
   { value: "venue", icon: "buildings", labelKey: "role_venue_label", disabled: false },
   { value: "fan", icon: "heart", labelKey: "role_fan_label", disabled: false },
   { value: "booker", icon: "briefcase", labelKey: "role_booker_label", disabled: true },
-  { value: "manager", icon: "star", labelKey: "role_manager_label", disabled: true },
+  { value: "manager", icon: "star", labelKey: "role_manager_label", disabled: false },
 ];
 
 interface Props {

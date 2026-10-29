@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   addDateNote,
   addGuestEntry,
+  addTourReminder,
   adoptCurrentDocumentVersion,
+  createTour,
+  dismissTourReminder,
   moveSetlistSong,
   moveTourVehicle,
   type ActionResult,
@@ -54,4 +58,25 @@ export async function moveVehicleAction(dateId: string, fromIndex: number, toInd
 
 export async function adoptDocumentAction(dateId: string, documentId: string) {
   return run(dateId, (client, locale) => adoptCurrentDocumentVersion(client, { tourDateId: dateId, documentId }, locale));
+}
+
+export async function addReminderAction(dateId: string, at: string, message: string) {
+  return run(dateId, (client, locale) => addTourReminder(client, { tourDateId: dateId, at, message }, locale));
+}
+
+export async function dismissReminderAction(dateId: string, reminderId: string) {
+  return run(dateId, (client, locale) => dismissTourReminder(client, { reminderId }, locale));
+}
+
+/** Formulario "Nueva gira" del inicio: crea la gira y abre su primera fecha. */
+export async function createTourAction(_prev: { message: string } | null, formData: FormData) {
+  const locale = (await getLocale()) as Locale;
+  if (tourDataSource() !== "supabase") return { message: tourMessages(locale).errors.demoNoSave };
+  const result = await createTour(
+    await getSupabaseServerClient(),
+    { name: String(formData.get("name") ?? ""), startDate: String(formData.get("startDate") ?? "") },
+    locale
+  );
+  if (!result.ok) return { message: result.message };
+  redirect(`/tour/${result.result.dateId}/dia`);
 }

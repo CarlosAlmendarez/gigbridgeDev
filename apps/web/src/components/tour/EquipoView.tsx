@@ -44,6 +44,8 @@ export function EquipoView({
     setGuestDraft,
     addGuest,
     setGuestStatus,
+    canAdmin,
+    canContribute,
   } = useTourUI();
   const t = useTranslations("tour");
   const locale = useLocale() as Locale;
@@ -130,7 +132,7 @@ export function EquipoView({
         )}
         {tab === "contactos" && (
           <FilterRow label={t("equipo.filterType")}>
-            {CONTACT_TYPES.map((f) => (
+            {CONTACT_TYPES.filter((f) => f === "Todos" || f === "Gira" || EXTERNAL_CONTACTS.some((c) => c.type === f)).map((f) => (
               <button key={f} type="button" onClick={() => setContactType(f)} aria-pressed={contactType === f} className={chipClass(contactType === f, true)}>
                 {t(`contactTypes.${f}`)}
               </button>
@@ -349,7 +351,9 @@ export function EquipoView({
         </div>
       )}
 
-      {tab === "invitados" && (
+      {tab === "invitados" && !canContribute && <p className="text-sm text-neutral-700">{t("equipo.guestsNoAccess")}</p>}
+
+      {tab === "invitados" && canContribute && (
         <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(380px,1fr))] gap-8">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
@@ -386,13 +390,17 @@ export function EquipoView({
             {guests.length === 0 && <p className="text-sm text-neutral-700">{t("equipo.guestsEmpty")}</p>}
             <div className="flex flex-col">
               {guests.map((g, i) => {
-                const [tagClass] = guestTag(g.status, locale);
+                const [tagClass, tagLabel] = guestTag(g.status, locale);
                 return (
                   <div key={g.id ?? i} className="flex items-center gap-2 py-2">
                     <div className="flex-1 min-w-0">
                       <div className="font-heading font-semibold text-[17px]">{g.name}</div>
                       <div className="text-xs text-neutral-700">{g.by}</div>
                     </div>
+                    {!canAdmin ? (
+                      <span className={tagClass}>{tagLabel}</span>
+                    ) : (
+                    <>
                     <label className="sr-only" htmlFor={`guest-status-${i}`}>
                       {t("equipo.guestStatusOf", { name: g.name })}
                     </label>
@@ -408,6 +416,8 @@ export function EquipoView({
                         </option>
                       ))}
                     </select>
+                    </>
+                    )}
                   </div>
                 );
               })}

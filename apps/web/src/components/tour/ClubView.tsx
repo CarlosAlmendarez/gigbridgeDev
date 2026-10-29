@@ -8,7 +8,7 @@ import { chipClass } from "@/lib/ui";
 import type { Provider } from "@gigbridge/types";
 
 export function ClubView({ providers: allProviders }: { providers: Provider[] }) {
-  const { bucket, setBucket, filtro, setFiltro } = useTourUI();
+  const { bucket, setBucket, filtro, setFiltro, canContribute } = useTourUI();
   const t = useTranslations("tour");
 
   const bucketId = (BUCKETS.find((b) => b.id === bucket) ?? BUCKETS[0]).id;
@@ -25,9 +25,7 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
       </p>
 
       {allProviders.length === 0 ? (
-        <p className="text-sm text-neutral-700 pt-4 max-w-[60ch]">
-          {t("club.empty")}
-        </p>
+        <p className="text-sm text-neutral-700 pt-4 max-w-[60ch]">{canContribute ? t("club.empty") : t("club.noAccess")}</p>
       ) : (
         <>
 
@@ -50,7 +48,7 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
 
       <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6 items-start">
         {providers.map((p, i) => {
-          const contactable = p.bucket !== "vetado" && p.email !== "—";
+          const contactable = p.bucket !== "vetado";
           const tagClass =
             p.bucket === "vetado" ? "tag tag-accent-2" : p.bucket === "recinto" ? "tag tag-accent" : "tag tag-neutral";
           const tagLabel = t(`buckets.${p.bucket}.tag`);
@@ -68,14 +66,18 @@ export function ClubView({ providers: allProviders }: { providers: Provider[] })
               <div className="text-[13px] italic text-neutral-700 mt-[3px]">{p.note}</div>
               {contactable && (
                 <div className="flex gap-2 mt-2">
-                  <a className="btn btn-secondary min-h-10" href={`tel:${p.tel}`} aria-label={t("common.callTo", { name: p.name })}>
+                  {p.tel && (
+                  <a className="btn btn-secondary min-h-10" href={`tel:${p.tel.replace(/\s/g, "")}`} aria-label={t("common.callTo", { name: p.name })}>
                     <Icon name="phone" size={17} />
                     {t("common.call")}
                   </a>
+                  )}
+                  {p.email !== "—" && (
                   <a className="btn btn-secondary min-h-10" href={`mailto:${p.email}`}>
                     <Icon name="envelope-simple" size={17} />
                     {t("common.email")}
                   </a>
+                  )}
                 </div>
               )}
             </div>

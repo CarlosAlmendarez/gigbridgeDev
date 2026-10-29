@@ -228,6 +228,12 @@ export interface TourSummary {
   id?: string;
   name: string;
   bandLine: string;
+  /**
+   * Rol de quien consulta en esta gira (0015): la UI esconde lo que la RLS
+   * le rechazaría en vez de dejarlo intentar. El mock no lo define y se
+   * comporta como admin (todo editable, nada se guarda).
+   */
+  viewerRole?: "admin" | "dept_head" | "member" | "guest";
 }
 
 export interface VehicleLoad {
@@ -238,6 +244,9 @@ export interface VehicleLoad {
 }
 
 export interface Reminder {
+  /** Id de `reminders` con datos reales; el mock no lo tiene. */
+  id?: string;
+  /** Hora local de la fecha, "HH:MM". */
   at: string;
   message: string;
 }

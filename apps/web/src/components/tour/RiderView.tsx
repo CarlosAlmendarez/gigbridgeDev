@@ -24,7 +24,7 @@ export function RiderView({ dateId, tourDate }: { dateId: string; tourDate: Tour
  * que la que usa esta fecha. Un admin la adopta y la fecha pasa a vigente.
  */
 function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
-  const { adoptDocument } = useTourUI();
+  const { adoptDocument, canAdmin } = useTourUI();
   const t = useTranslations("tour");
   const files = mapFiles(d.show.docs, useLocale() as Locale);
   const outdated = files.filter((f) => f.status === "revisar" && f.documentId);
@@ -50,14 +50,16 @@ function LiveDocuments({ dateId, d }: { dateId: string; d: TourDate }) {
       {outdated.length > 0 && (
         <div className="pt-6">
           <h6 className="mb-1">{t("rider.newVersions")}</h6>
-          <p className="text-xs text-neutral-700 mb-3">{t("rider.newVersionsHelp")}</p>
+          <p className="text-xs text-neutral-700 mb-3">{canAdmin ? t("rider.newVersionsHelp") : t("rider.adoptAdminOnly")}</p>
           <div className="flex flex-col gap-2">
             {outdated.map((f) => (
               <div key={f.documentId} className="flex items-center gap-3">
                 <span className="flex-1 min-w-0 text-sm break-words">{f.name}</span>
-                <button type="button" className="btn btn-secondary min-h-10" onClick={() => adoptDocument(dateId, f.documentId!)}>
-                  {t("rider.adopt")}
-                </button>
+                {canAdmin && (
+                  <button type="button" className="btn btn-secondary min-h-10" onClick={() => adoptDocument(dateId, f.documentId!)}>
+                    {t("rider.adopt")}
+                  </button>
+                )}
               </div>
             ))}
           </div>

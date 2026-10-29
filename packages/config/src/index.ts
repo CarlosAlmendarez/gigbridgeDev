@@ -77,4 +77,4 @@ export const GROUP_MODES: GroupModeDef[] = [{ id: "party" }, { id: "equipo" }, {
 export const BUCKETS: Bucket[] = [{ id: "recinto" }, { id: "local" }, { id: "general" }, { id: "vetado" }];
 
 // Valores de ExternalContact.type; la etiqueta visible está en i18n/tour.ts (contactTypes).
-export const CONTACT_TYPES = ["Todos", "Gira", "Recinto", "Promotor", "Hotel", "Proveedor"] as const;
+export const CONTACT_TYPES = ["Todos", "Gira", "Recinto", "Promotor", "Hotel", "Proveedor", "Otro"] as const;

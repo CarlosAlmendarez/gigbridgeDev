@@ -41,7 +41,7 @@ describe("createSupabaseTourRepository", () => {
   it("el roster sale en orden de mando y con los cuartos que la RLS deja ver", async () => {
     const repo = createSupabaseTourRepository(f.actors.soundB.client, { dateId: f.tourDateId });
     const roster = await repo.listRoster();
-    expect(roster).toHaveLength(5);
+    expect(roster).toHaveLength(6);
 
     const byName = Object.fromEntries(roster.map((p) => [p.name, p]));
     expect(byName["RLS soundB"].room).toBe("102"); // el suyo

@@ -24,7 +24,7 @@ export function Sidebar({ roster }: { roster: RosterPerson[] }) {
   const pathname = usePathname();
   const params = useParams<{ dateId: string }>();
   const dateId = params.dateId;
-  const { lens, setLens, night, toggleNight, summary, source } = useTourUI();
+  const { lens, setLens, night, toggleNight, summary, source, viewerRole } = useTourUI();
   const t = useTranslations("tour");
   // En teléfono las opciones (party, modo noche, sesión) van plegadas para
   // que el contenido aparezca sin tener que bajar por toda la barra.
@@ -59,6 +59,9 @@ export function Sidebar({ roster }: { roster: RosterPerson[] }) {
           )}
           <div className="font-heading font-semibold text-xl tracking-[-0.02em]">{summary.name}</div>
           <div className="text-[13px] italic text-neutral-700">{summary.bandLine}</div>
+          {source === "supabase" && (
+            <div className="text-xs text-neutral-700 mt-1">{t("dia.roleLine", { role: t(`dia.role_${viewerRole}`) })}</div>
+          )}
         </div>
         <button
           type="button"

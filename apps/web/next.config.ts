@@ -5,6 +5,12 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@gigbridge/data", "@gigbridge/types", "@gigbridge/config"],
+  experimental: {
+    // El proxy corre también en /api: sin esto corta el cuerpo a 10 MB y
+    // una subida de documento (hasta 20 MB, ver packages/data tour/uploads.ts)
+    // llegaría truncada.
+    proxyClientMaxBodySize: "21mb",
+  },
   images: {
     // Avatares/covers/galería de venues viven en Supabase Storage.
     remotePatterns: [{ protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" }],

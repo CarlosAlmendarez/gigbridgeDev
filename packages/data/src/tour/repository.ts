@@ -4,6 +4,7 @@ import type {
   ExternalContact,
   Guest,
   Provider,
+  Reminder,
   RosterPerson,
   SetlistSong,
   TourDate,
@@ -15,6 +16,7 @@ import {
   BAND_LINE,
   DATES,
   DEFAULT_NOTAS,
+  DEFAULT_REMINDERS,
   DEFAULT_SETLIST,
   DEFAULT_VEHICLES,
   EXTERNAL_CONTACTS,
@@ -37,10 +39,10 @@ import { createSupabaseTourRepository, findOpeningTourDateId, listMyTours, type 
  *   sesión del usuario, así que la RLS decide qué ve cada quien. La app
  *   nativa pasa su propio cliente y obtiene exactamente lo mismo.
  *
- * Secciones de la UI que todavía NO tienen tabla y en "supabase" salen
- * vacías: proveedores (club), contactos externos y vacantes. Tablas que
- * existen pero aún no alimentan la UI: reminders (en modo supabase la
- * sección se oculta). Las escrituras viven en mutations.ts.
+ * Todas las secciones de la UI tienen tabla desde 0016 (proveedores,
+ * contactos externos y del venue, vacantes, itinerario, recordatorios).
+ * Lo único que sigue sin backend es la subida de archivos del lugar: esos
+ * los sube el venue desde su panel. Las escrituras viven en mutations.ts.
  */
 
 export type TourDataSource = "mock" | "supabase";
@@ -66,6 +68,8 @@ export interface TourRepository {
   getTourSummary(): Promise<TourSummary | null>;
   /** Vehículos de la gira en orden de carga. */
   listVehicles(): Promise<VehicleLoad[]>;
+  /** Recordatorios propios y no descartados de una fecha. */
+  listMyReminders(dateId: string): Promise<Reminder[]>;
 }
 
 export function createMockTourRepository(): TourRepository {
@@ -82,6 +86,7 @@ export function createMockTourRepository(): TourRepository {
     listTourNotes: async () => DEFAULT_NOTAS,
     getTourSummary: async () => ({ name: TOUR_NAME, bandLine: BAND_LINE }),
     listVehicles: async () => DEFAULT_VEHICLES,
+    listMyReminders: async () => DEFAULT_REMINDERS,
   };
 }
 

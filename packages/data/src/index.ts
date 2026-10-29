@@ -13,6 +13,7 @@ export * from "./tour/repository";
 export * from "./tour/formatting";
 export * from "./tour/permissions";
 export * from "./tour/mutations";
+export * from "./tour/uploads";
 export {
   TOUR_NAME,
   BAND_LINE,
@@ -22,7 +23,6 @@ export {
   DEFAULT_SETLIST,
   DEFAULT_VEHICLES,
   DEFAULT_REMINDERS,
-  REMINDER_PRESETS,
   DEFAULT_NOTAS,
   type NotaEntry,
 } from "./tour/mockData";
