@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Source_Serif_4 } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
+import { getLocale } from "next-intl/server";
+import { clientMessages } from "@/lib/clientMessages";
 import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
@@ -34,7 +35,9 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
-  const messages = await getMessages();
+  // Base para páginas sin provider propio (auth, venue público); dashboard,
+  // tour e invite montan el suyo con lo que necesitan.
+  const messages = await clientMessages(["auth", "venue"]);
 
   return (
     <html lang={locale} className={sourceSerif.variable}>

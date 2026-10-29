@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { NextIntlClientProvider } from "next-intl";
+import { clientMessages } from "@/lib/clientMessages";
 import { TourUIProvider } from "@/context/TourUIContext";
 import { Sidebar } from "@/components/tour/Sidebar";
 import { DateStrip } from "@/components/tour/DateStrip";
@@ -15,7 +17,8 @@ export default async function TourLayout({
 }) {
   const { dateId } = await params;
   const repo = await getTourRepository({ dateId });
-  const [summary, dates, roster, guestsByDate, setlist, notas, vehicles, reminders] = await Promise.all([
+  const [messages, summary, dates, roster, guestsByDate, setlist, notas, vehicles, reminders] = await Promise.all([
+    clientMessages(["tour"]),
     repo.getTourSummary(),
     repo.listTourDates(),
     repo.listRoster(),
@@ -30,6 +33,7 @@ export default async function TourLayout({
   if (!summary || !dates.some((d) => d.id === dateId)) notFound();
 
   return (
+    <NextIntlClientProvider messages={messages}>
     <TourUIProvider data={{ source: tourDataSource(), dateId, guestsByDate, setlist, notas, summary, vehicles, reminders }}>
       <div className="min-h-screen bg-bg text-text font-body grid grid-cols-1 md:grid-cols-[248px_minmax(0,1fr)]">
         <Sidebar roster={roster} />
@@ -39,5 +43,6 @@ export default async function TourLayout({
         </div>
       </div>
     </TourUIProvider>
+    </NextIntlClientProvider>
   );
 }

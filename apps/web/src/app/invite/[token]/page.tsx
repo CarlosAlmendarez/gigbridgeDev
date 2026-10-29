@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
+import { clientMessages } from "@/lib/clientMessages";
 import { getTourInvite } from "@gigbridge/data";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { rememberInviteAction } from "@/lib/actions/invite";
@@ -14,11 +16,14 @@ import { AcceptInvite } from "./AcceptInvite";
  */
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [supabase, t, te] = await Promise.all([
+  const [supabase, t, te, messages] = await Promise.all([
     getSupabaseServerClient(),
     getTranslations("tour.invite"),
     getTranslations("tour.errors"),
+    clientMessages(["tour"]),
   ]);
+  // AcceptInvite solo usa tour.invite.
+  const inviteMessages = { tour: { invite: (messages.tour as { invite: unknown }).invite } };
   const [invite, { data: auth }] = await Promise.all([getTourInvite(supabase, token), supabase.auth.getUser()]);
   const { data: profile } = auth.user
     ? await supabase.from("profiles").select("id").eq("user_id", auth.user.id).maybeSingle()
@@ -51,7 +56,9 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             {invite.bandName && <p className="text-sm text-neutral-700">{invite.bandName}</p>}
             <p className="text-xs text-neutral-700">{t("notYou", vars)}</p>
             {auth.user && profile ? (
-              <AcceptInvite token={token} />
+              <NextIntlClientProvider messages={inviteMessages}>
+                <AcceptInvite token={token} />
+              </NextIntlClientProvider>
             ) : auth.user ? (
               <form action={rememberInviteAction.bind(null, token, "/auth/setup")}>
                 <button type="submit" className="btn btn-primary min-h-11">

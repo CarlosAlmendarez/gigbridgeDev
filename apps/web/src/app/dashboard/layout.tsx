@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
+import { clientMessages } from "@/lib/clientMessages";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { logout } from "@/lib/actions/auth";
 
@@ -10,7 +12,10 @@ import { logout } from "@/lib/actions/auth";
  * monorepo. Se amplía cuando se porten.
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const t = await getTranslations("nav");
+  const [t, messages] = await Promise.all([
+    getTranslations("nav"),
+    clientMessages(["auth", "dashboard", "venue", "venue_wizard"]),
+  ]);
 
   return (
     <div className="min-h-screen bg-bg">
@@ -27,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </form>
         </div>
       </header>
-      {children}
+      <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
     </div>
   );
 }
