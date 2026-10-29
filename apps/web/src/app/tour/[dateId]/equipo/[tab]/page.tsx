@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { EquipoView } from "@/components/tour/EquipoView";
 import type { EquipoTabId } from "@gigbridge/types";
-import { getTourRepository } from "@/lib/tourRepository";
+import { listCrewRoles } from "@gigbridge/data";
+import { getTourRepository, tourDataSource } from "@/lib/tourRepository";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
 
 const VALID_TABS: EquipoTabId[] = ["crew", "areas", "ubicaciones", "contactos", "invitados"];
 
@@ -14,11 +16,12 @@ export default async function EquipoPage({
   if (!VALID_TABS.includes(tab as EquipoTabId)) notFound();
 
   const repo = await getTourRepository({ dateId });
-  const [roster, vacancies, externalContacts, dates] = await Promise.all([
+  const [roster, vacancies, externalContacts, dates, crewRoles] = await Promise.all([
     repo.listRoster(),
     repo.listVacancies(),
     repo.listExternalContacts(),
     repo.listTourDates(),
+    tab === "crew" && tourDataSource() === "supabase" ? getSupabaseServerClient().then(listCrewRoles) : Promise.resolve([]),
   ]);
 
   return (
@@ -29,6 +32,7 @@ export default async function EquipoPage({
       vacancies={vacancies}
       externalContacts={externalContacts}
       dates={dates}
+      crewRoles={crewRoles}
     />
   );
 }

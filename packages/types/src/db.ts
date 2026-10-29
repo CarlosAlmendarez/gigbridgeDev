@@ -839,3 +839,17 @@ export interface TourTravelLegRow {
   sort_order: number;
   created_at: string;
 }
+
+// ── 0017_tour_invites ────────────────────────────────────────────
+
+/** Enlace de invitación (/invite/<token>) para que una persona del roster ligue su cuenta. */
+export interface TourInviteRow {
+  id: string;
+  tour_crew_id: string;
+  token: string;
+  created_by: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+}

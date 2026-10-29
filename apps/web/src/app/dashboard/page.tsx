@@ -1,11 +1,13 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { DEFAULT_DATE_ID, listMyTours } from "@gigbridge/data";
+import { DEFAULT_DATE_ID, getTourInvite, listMyTours } from "@gigbridge/data";
 import { Icon } from "@/components/Icon";
 import { NewTourForm } from "@/components/dashboard/NewTourForm";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { tourDataSource } from "@/lib/tourRepository";
+import { INVITE_COOKIE } from "@/lib/inviteCookie";
 
 /**
  * Inicio después de iniciar sesión (login, registro, setup y el proxy
@@ -24,6 +26,10 @@ export default async function DashboardPage() {
   if (!profile) redirect("/auth/setup");
 
   const demo = tourDataSource() === "mock";
+  // Invitación que se abrió antes de iniciar sesión o registrarse (lib/actions/invite.ts).
+  const inviteToken = (await cookies()).get(INVITE_COOKIE)?.value;
+  const pendingInvite = inviteToken && !demo ? await getTourInvite(supabase, inviteToken) : null;
+  const ti = await getTranslations("tour.invite");
   const tours = demo ? [] : await listMyTours(supabase, new Date().toISOString().slice(0, 10));
 
   // Fechas de calendario (sin hora): se formatean en UTC para que la zona
@@ -37,6 +43,17 @@ export default async function DashboardPage() {
       <div>
         <h1 className="mb-1 font-heading text-3xl font-semibold">{t("greeting", { name: profile.display_name })}</h1>
       </div>
+
+      {pendingInvite?.state === "valid" && (
+        <Link href={`/invite/${inviteToken}`} className="card elev-sm flex-row items-center gap-3 p-4 border border-accent">
+          <Icon name="envelope-simple" size={22} className="text-accent-800" />
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold">{ti("pendingTitle")}</div>
+            <div className="text-sm text-neutral-700">{pendingInvite.tourName}</div>
+          </div>
+          <span className="text-sm text-accent-800">{ti("pendingOpen")}</span>
+        </Link>
+      )}
 
       <section className="flex flex-col gap-3">
         <div>

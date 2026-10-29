@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Icon } from "@/components/Icon";
@@ -8,6 +8,7 @@ import { useTourUI } from "@/context/TourUIContext";
 import { CONTACT_TYPES, EQUIPO_TABS, GROUP_MODES, GUEST_STATES, type Locale } from "@gigbridge/config";
 import { buildGroups, guestTag } from "@gigbridge/data";
 import { chipClass } from "@/lib/ui";
+import { AddPersonDialog, InvitePanel } from "./CrewInvite";
 import type { EquipoTabId, ExternalContact, RosterPerson, TourDate, Vacancy } from "@gigbridge/types";
 
 export function EquipoView({
@@ -17,6 +18,7 @@ export function EquipoView({
   vacancies: VACANCIES,
   externalContacts: EXTERNAL_CONTACTS,
   dates: DATES,
+  crewRoles = [],
 }: {
   dateId: string;
   tab: EquipoTabId;
@@ -24,6 +26,8 @@ export function EquipoView({
   vacancies: Vacancy[];
   externalContacts: ExternalContact[];
   dates: TourDate[];
+  /** Catálogo de roles operativos para "Agregar persona" (solo datos reales). */
+  crewRoles?: Array<{ id: string; name: string; department: string }>;
 }) {
   const {
     source,
@@ -50,6 +54,7 @@ export function EquipoView({
   const t = useTranslations("tour");
   const locale = useLocale() as Locale;
   const live = source === "supabase";
+  const [adding, setAdding] = useState(false);
   const teamName = (team: string) => (t.has(`teams.${team}`) ? t(`teams.${team}`) : team);
   const accountLabel = { Todos: t("equipo.accountAll"), "Con cuenta": t("equipo.account"), Freelance: t("equipo.freelance") };
 
@@ -129,6 +134,12 @@ export function EquipoView({
         )}
         {tab === "crew" && (
           <p className="text-xs text-neutral-700 m-0">{t("equipo.accountHelp")}</p>
+        )}
+        {tab === "crew" && live && canAdmin && (
+          <button type="button" className="btn btn-secondary min-h-10 self-start" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={16} />
+            {t("equipo.addPerson")}
+          </button>
         )}
         {tab === "contactos" && (
           <FilterRow label={t("equipo.filterType")}>
@@ -457,6 +468,8 @@ export function EquipoView({
         </div>
       )}
 
+      {adding && <AddPersonDialog dateId={dateId} roles={crewRoles} onClose={() => setAdding(false)} />}
+
       {crewDetail && (
         <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4 bg-black/40" onClick={() => setCrewSel(null)}>
           <div
@@ -488,6 +501,9 @@ export function EquipoView({
               {crewDetail.tel || t("equipo.noPhone")}
             </div>
             <p className="card-body">{crewDetail.scope}</p>
+            {live && canAdmin && !crewDetail.account && crewDetail.tourCrewId && (
+              <InvitePanel key={crewDetail.tourCrewId} tourCrewId={crewDetail.tourCrewId} name={crewDetail.name} email={crewDetail.email} />
+            )}
             <div className="card-meta">
               <Icon name="git-fork" size={15} />
               <span>{crewDetail.reports}</span>

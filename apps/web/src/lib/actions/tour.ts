@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import {
   addDateNote,
   addGuestEntry,
+  addTourCrewMember,
   addTourReminder,
   adoptCurrentDocumentVersion,
   createTour,
   dismissTourReminder,
+  type TourMemberRoleInput,
   moveSetlistSong,
   moveTourVehicle,
   type ActionResult,
@@ -79,4 +81,11 @@ export async function createTourAction(_prev: { message: string } | null, formDa
   );
   if (!result.ok) return { message: result.message };
   redirect(`/tour/${result.result.dateId}/dia`);
+}
+
+export async function addCrewMemberAction(
+  dateId: string,
+  input: { name: string; email: string; phone: string; roleId: string; memberRole: TourMemberRoleInput; party: string }
+) {
+  return run(dateId, (client, locale) => addTourCrewMember(client, { tourDateId: dateId, ...input }, locale));
 }

@@ -292,6 +292,7 @@ export function mapRoster(rows: RosterRow[], rooms: HotelRoomAssignmentRow[], lo
     const room = rooms.find((h) => h.crew_member_id === row.crew_member_id);
     const dept = row.role?.department?.name ?? "";
     return {
+      tourCrewId: row.id,
       name,
       role: row.role?.name ?? "",
       party: toParty(row.party),

@@ -262,3 +262,142 @@ export async function createTour(
   if (dateError) return { ok: false, message: e.tourCreateFailed };
   return { ok: true, result: { tourId, dateId } };
 }
+
+export type TourMemberRoleInput = "admin" | "dept_head" | "member" | "guest";
+const INVITE_ERRORS = ["invite_not_found", "invite_expired", "invite_used", "not_authenticated", "already_member", "claimed_by_other"] as const;
+
+/** Roles operativos del catálogo (0008) para el alta de una persona. */
+export async function listCrewRoles(client: SupabaseClient): Promise<Array<{ id: string; name: string; department: string }>> {
+  const { data } = await client.from("roles").select("id, name, department:departments(name, sort_order)").order("name");
+  return ((data ?? []) as unknown as Array<{ id: string; name: string; department: { name: string } | { name: string }[] | null }>).map((r) => {
+    const dept = Array.isArray(r.department) ? r.department[0] : r.department;
+    return { id: r.id, name: r.name, department: dept?.name ?? "" };
+  });
+}
+
+/**
+ * Enlace de invitación vigente para una persona del roster: reusa el que
+ * siga activo o crea uno (solo admins, RLS de 0017). Devuelve el token.
+ */
+export async function createTourInvite(
+  client: SupabaseClient,
+  input: { tourCrewId: string },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<{ token: string }>> {
+  const e = tourMessages(locale).errors;
+  const { data: active } = await client
+    .from("tour_invites")
+    .select("token")
+    .eq("tour_crew_id", input.tourCrewId)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (active) return { ok: true, result: { token: active.token as string } };
+  const { data, error } = await client
+    .from("tour_invites")
+    .insert({ tour_crew_id: input.tourCrewId, created_by: await currentProfileId(client) })
+    .select("token")
+    .single();
+  if (error || !data) return { ok: false, message: e.crewAdminOnly };
+  return { ok: true, result: { token: data.token as string } };
+}
+
+/**
+ * Alta de una persona en el roster de la gira (sin cuenta todavía) y su
+ * enlace de invitación. Los ids se generan aquí: la RLS de lectura de
+ * crew_members aún no la ve en el INSERT ... RETURNING.
+ */
+export async function addTourCrewMember(
+  client: SupabaseClient,
+  input: {
+    tourDateId: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    roleId?: string | null;
+    memberRole: TourMemberRoleInput;
+    party?: string | null;
+  },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<{ tourCrewId: string; token: string }>> {
+  const e = tourMessages(locale).errors;
+  const name = input.name.trim();
+  if (!name) return { ok: false, message: e.crewNameEmpty };
+  if (!["admin", "dept_head", "member", "guest"].includes(input.memberRole)) return { ok: false, message: e.invalidData };
+
+  const { data: date } = await client.from("tour_dates").select("tour_id").eq("id", input.tourDateId).maybeSingle();
+  if (!date) return { ok: false, message: e.dateNotFound };
+  const { data: isAdmin } = await client.rpc("is_tour_admin", { p_tour_id: date.tour_id });
+  if (isAdmin !== true) return { ok: false, message: e.crewAdminOnly };
+
+  const crewMemberId = crypto.randomUUID();
+  const tourCrewId = crypto.randomUUID();
+  const { error: crewError } = await client.from("crew_members").insert({
+    id: crewMemberId,
+    full_name: name,
+    email: input.email?.trim() || null,
+    phone: input.phone?.trim() || null,
+  });
+  if (crewError) return { ok: false, message: e.crewAddFailed };
+  const { error: tcError } = await client.from("tour_crew").insert({
+    id: tourCrewId,
+    tour_id: date.tour_id,
+    crew_member_id: crewMemberId,
+    role_id: input.roleId || null,
+    member_role: input.memberRole,
+    party: input.party?.trim() || null,
+    status: "pending",
+  });
+  if (tcError) {
+    await client.from("crew_members").delete().eq("id", crewMemberId);
+    return { ok: false, message: e.crewAddFailed };
+  }
+  const invite = await createTourInvite(client, { tourCrewId }, locale);
+  if (!invite.ok) return invite;
+  return { ok: true, result: { tourCrewId, token: invite.result.token } };
+}
+
+export interface TourInvitePreview {
+  state: "valid" | "expired" | "accepted" | "not_found";
+  tourName: string | null;
+  bandName: string | null;
+  personName: string | null;
+  invitedBy: string | null;
+  firstDateId: string | null;
+}
+
+/** Vista previa de /invite/<token>; funciona sin sesión (get_tour_invite, 0017). */
+export async function getTourInvite(client: SupabaseClient, token: string): Promise<TourInvitePreview> {
+  const { data } = await client.rpc("get_tour_invite", { p_token: token });
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { state: TourInvitePreview["state"]; tour_name: string | null; band_name: string | null; person_name: string | null; invited_by: string | null; first_date_id: string | null }
+    | undefined;
+  return {
+    state: row?.state ?? "not_found",
+    tourName: row?.tour_name ?? null,
+    bandName: row?.band_name ?? null,
+    personName: row?.person_name ?? null,
+    invitedBy: row?.invited_by ?? null,
+    firstDateId: row?.first_date_id ?? null,
+  };
+}
+
+/** Acepta la invitación con la sesión actual; devuelve la fecha con la que abrir la gira. */
+export async function acceptTourInvite(
+  client: SupabaseClient,
+  input: { token: string },
+  locale: Locale = DEFAULT_LOCALE
+): Promise<ActionResult<{ tourId: string; dateId: string | null }>> {
+  const e = tourMessages(locale).errors;
+  const { data: tourId, error } = await client.rpc("accept_tour_invite", { p_token: input.token });
+  if (error) {
+    const code = INVITE_ERRORS.find((c) => error.message.includes(c));
+    return { ok: false, message: code ? e[code] : e.inviteFailed };
+  }
+  const { data: dates } = await client.from("tour_dates").select("id, show_date").eq("tour_id", tourId).order("show_date");
+  const today = new Date().toISOString().slice(0, 10);
+  const open = (dates ?? []).find((d) => (d.show_date as string) >= today) ?? (dates ?? []).at(-1);
+  return { ok: true, result: { tourId: tourId as string, dateId: (open?.id as string | undefined) ?? null } };
+}

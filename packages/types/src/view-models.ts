@@ -140,6 +140,8 @@ export interface Bucket {
 }
 
 export interface RosterPerson {
+  /** Id de tour_crew con datos reales (para invitarla); el mock no lo tiene. */
+  tourCrewId?: string;
   name: string;
   role: string;
   party: PartyKey;
