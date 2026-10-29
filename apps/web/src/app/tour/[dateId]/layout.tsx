@@ -4,6 +4,7 @@ import { clientMessages } from "@/lib/clientMessages";
 import { TourUIProvider } from "@/context/TourUIContext";
 import { Sidebar } from "@/components/tour/Sidebar";
 import { DateStrip } from "@/components/tour/DateStrip";
+import { TourOffline } from "@/components/tour/TourOffline";
 import { getTourRepository, tourDataSource } from "@/lib/tourRepository";
 
 // Vive bajo [dateId] (no en /tour) porque las rutas solo traen la fecha:
@@ -31,10 +32,12 @@ export default async function TourLayout({
   // Fecha inexistente o de una gira que la RLS no deja ver: 404 aquí, antes
   // de que la navegación intente pintarse con una gira vacía.
   if (!summary || !dates.some((d) => d.id === dateId)) notFound();
+  const nextDateId = dates[dates.findIndex((d) => d.id === dateId) + 1]?.id ?? null;
 
   return (
     <NextIntlClientProvider messages={messages}>
     <TourUIProvider data={{ source: tourDataSource(), dateId, guestsByDate, setlist, notas, summary, vehicles, reminders }}>
+      <TourOffline dateId={dateId} nextDateId={nextDateId} />
       <div className="min-h-screen bg-bg text-text font-body grid grid-cols-1 md:grid-cols-[248px_minmax(0,1fr)]">
         <Sidebar roster={roster} />
         <div className="min-w-0 px-4 pb-8 md:px-0 md:pt-0 md:pr-8 md:pl-0">

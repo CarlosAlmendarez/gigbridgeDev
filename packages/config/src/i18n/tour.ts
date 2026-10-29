@@ -80,6 +80,7 @@ const es = {
     offline: "Sin conexión: el cambio no se guardó.",
     guestStatusAdminOnly: "Solo un admin de la gira puede cambiar el status.",
     guestStatusFailed: "No se pudo cambiar el status.",
+    offlineBanner: "Sin conexión: ves la última copia guardada en este teléfono. Lo que cambies no se guardará hasta que vuelva la señal.",
     close: "Cerrar",
   },
   // Lo que el modo de ejemplo agrega en memoria.
@@ -496,6 +497,7 @@ const en: TourMessages = {
     offline: "No connection: the change wasn't saved.",
     guestStatusAdminOnly: "Only a tour admin can change the status.",
     guestStatusFailed: "Couldn't change the status.",
+    offlineBanner: "Offline: you're seeing the last copy saved on this phone. Changes won't be saved until you're back online.",
     close: "Close",
   },
   demo: {

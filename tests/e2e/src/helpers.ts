@@ -27,7 +27,9 @@ export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    // ERR_INTERNET_DISCONNECTED es lo esperado en la prueba sin conexión
+    // (Next sigue intentando precargar enlaces).
+    page.on("console", (m) => m.type() === "error" && !m.text().includes("ERR_INTERNET_DISCONNECTED") && errors.push(m.text()));
     await use(page);
     expect(errors, "errores de consola").toEqual([]);
   },

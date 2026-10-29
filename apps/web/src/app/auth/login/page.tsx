@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { login, resendConfirmationEmail } from "@/lib/actions/auth";
@@ -8,6 +8,12 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthAlert } from "@/components/auth/AuthAlert";
 
 export default function LoginPage() {
+  // Cerrar sesión siempre termina aquí: se borran las copias sin conexión de
+  // la gira (public/sw.js) para que la siguiente persona en este teléfono no
+  // las vea.
+  useEffect(() => {
+    if ("caches" in window) caches.delete("gb-pages-v1").catch(() => {});
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [resendMsg, setResendMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();

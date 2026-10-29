@@ -1,16 +1,79 @@
 // Service worker de GigBridge.
 //
-// Fase 1 (hoy): solo existe para que la app sea instalable y para recibir
-// push (port de GigBridge/gigbridge/public/sw.js). NO cachea nada todavía:
-// la caché offline del day sheet (día actual y siguiente, solo lectura)
-// es Fase 3 del plan y se agrega aquí con su propia estrategia.
+// - Instalable + push (port de GigBridge/gigbridge/public/sw.js).
+// - Sin conexión (Fase 3, versión mínima): las páginas de la gira (/tour/*)
+//   van "network-first": con red se sirven frescas y se guardan; sin red se
+//   sirve la última copia guardada. components/tour/TourOffline.tsx precarga
+//   las secciones de la fecha abierta y de la siguiente para que estén
+//   disponibles aunque no se hayan visitado. Los archivos de /_next/static
+//   son inmutables (llevan hash) y van "cache-first".
+//
+// Las copias tienen datos del usuario: la página de login borra
+// PAGES_CACHE al montarse (cerrar sesión siempre termina ahí), para que
+// otra persona en el mismo teléfono no vea la gira de la anterior.
+
+const PAGES_CACHE = 'gb-pages-v1'
+const STATIC_CACHE = 'gb-static-v1'
+const KNOWN = [PAGES_CACHE, STATIC_CACHE]
 
 self.addEventListener('install', () => {
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('gb-') && !KNOWN.includes(k)).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  )
+})
+
+function isTourPage(request, url) {
+  if (!url.pathname.startsWith('/tour/')) return false
+  // Navegación del navegador o la precarga de TourOffline (Accept: text/html).
+  // Las peticiones RSC de Next (header RSC) no se guardan: sin red, Next cae
+  // a una navegación completa y esa sí sale de aquí.
+  if (request.headers.get('RSC')) return false
+  return request.mode === 'navigate' || (request.headers.get('Accept') || '').includes('text/html')
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(PAGES_CACHE)
+  try {
+    const response = await fetch(request)
+    // Solo copias buenas de la página pedida: una redirección (sesión
+    // vencida → login) o un error no deben pisar la última buena.
+    if (response.ok && !response.redirected) {
+      await cache.put(new URL(request.url).pathname, response.clone())
+    }
+    return response
+  } catch (err) {
+    const cached = await cache.match(new URL(request.url).pathname)
+    if (cached) return cached
+    throw err
+  }
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(STATIC_CACHE)
+  const cached = await cache.match(request)
+  if (cached) return cached
+  const response = await fetch(request)
+  if (response.ok) await cache.put(request, response.clone())
+  return response
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event
+  if (request.method !== 'GET') return
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirst(request))
+  } else if (isTourPage(request, url)) {
+    event.respondWith(networkFirst(request))
+  }
 })
 
 self.addEventListener('push', (event) => {

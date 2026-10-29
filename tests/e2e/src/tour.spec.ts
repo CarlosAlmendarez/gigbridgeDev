@@ -89,3 +89,28 @@ test("el admin agrega a una persona y ella entra a la gira con su enlace", async
   await expect(p2.getByText("Tu rol en esta gira: miembro")).toBeVisible();
   await other.close();
 });
+
+test("sin señal se ve la última copia de la fecha y al cerrar sesión se borra", async ({ page, context }) => {
+  const { tourDateId, venueName } = fx();
+  await login(page, "soundA", `/tour/${tourDateId}/dia`);
+  // La primera carga registra el service worker; con la segunda ya controla
+  // la página y TourOffline precarga las demás secciones.
+  await page.waitForFunction(() => navigator.serviceWorker?.ready.then(() => true));
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await expect
+    .poll(async () => page.evaluate(async () => (await (await caches.open("gb-pages-v1")).keys()).length), { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(5);
+
+  await context.setOffline(true);
+  await page.goto(`/tour/${tourDateId}/lugar`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(venueName);
+  await expect(page.getByRole("status")).toContainText("Sin conexión");
+
+  await context.setOffline(false);
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await expect(page).toHaveURL(/\/auth\/login/);
+  await expect
+    .poll(async () => page.evaluate(async () => (await caches.keys()).includes("gb-pages-v1")))
+    .toBe(false);
+});
