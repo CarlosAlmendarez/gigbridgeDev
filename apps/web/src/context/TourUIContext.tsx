@@ -371,7 +371,7 @@ export function TourUIProvider({ children, data }: { children: ReactNode; data: 
       {state.syncError && (
         <div
           role="alert"
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:max-w-sm z-50 tag tag-accent-2 !flex items-center justify-between gap-3 !px-4 !py-3 shadow-lg"
+          className="fixed bottom-4 left-4 right-4 md:left-auto md:max-w-sm z-50 tag tag-accent-2 flex items-center justify-between gap-3 px-4 py-3 shadow-lg"
         >
           <span>{state.syncError}</span>
           <button type="button" className="font-semibold" onClick={() => setState((st) => ({ ...st, syncError: null }))}>

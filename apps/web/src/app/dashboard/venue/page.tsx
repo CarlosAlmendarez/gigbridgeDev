@@ -142,11 +142,11 @@ export default async function VenueDashboardPage() {
           <div className="card elev-md p-5">
             <p className="mb-4 text-xs font-bold uppercase tracking-widest text-neutral-600">{t("venueActions")}</p>
             <div className="flex flex-col gap-2">
-              <Link href="/dashboard/venue/setup" className="card !flex-row items-center gap-3 px-4 py-3">
+              <Link href="/dashboard/venue/setup" className="card flex-row items-center gap-3 px-4 py-3">
                 <Icon name="pencil-simple" size={15} className="text-accent-800" />
                 <span className="text-sm">{t("editTechnicalInventory")}</span>
               </Link>
-              <Link href={`/venue/${venue.slug}`} target="_blank" className="card !flex-row items-center gap-3 px-4 py-3">
+              <Link href={`/venue/${venue.slug}`} target="_blank" className="card flex-row items-center gap-3 px-4 py-3">
                 <Icon name="share-network" size={15} className="text-neutral-600" />
                 <span className="text-sm">{t("viewPublicVenueProfile")}</span>
               </Link>

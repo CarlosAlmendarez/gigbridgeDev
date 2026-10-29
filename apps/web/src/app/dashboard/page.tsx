@@ -44,7 +44,7 @@ export default async function DashboardPage() {
         </div>
 
         {demo && (
-          <Link href={`/tour/${DEFAULT_DATE_ID}/dia`} className="card elev-sm !flex-row items-center gap-3 p-4">
+          <Link href={`/tour/${DEFAULT_DATE_ID}/dia`} className="card elev-sm flex-row items-center gap-3 p-4">
             <Icon name="map-trifold" size={22} className="text-accent-800" />
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{t("demoTourTitle")}</div>
@@ -82,14 +82,14 @@ export default async function DashboardPage() {
             <Link
               key={tour.id}
               href={`/tour/${tour.openDateId}/dia`}
-              className="card elev-sm !flex-row items-center gap-3 p-4"
+              className="card elev-sm flex-row items-center gap-3 p-4"
               aria-label={`${t("openTour")}: ${tour.name}`}
             >
               {body}
               <Icon name="caret-down" size={14} className="-rotate-90 text-neutral-600" />
             </Link>
           ) : (
-            <div key={tour.id} className="card !flex-row items-center gap-3 p-4">
+            <div key={tour.id} className="card flex-row items-center gap-3 p-4">
               {body}
             </div>
           );
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
             <h2 className="font-heading text-xl font-semibold">{t("myVenueTitle")}</h2>
             <p className="text-sm text-neutral-700">{t("myVenueDesc")}</p>
           </div>
-          <Link href="/dashboard/venue" className="card elev-sm !flex-row items-center gap-3 p-4">
+          <Link href="/dashboard/venue" className="card elev-sm flex-row items-center gap-3 p-4">
             <Icon name="buildings" size={22} className="text-accent-800" />
             <span className="flex-1 font-semibold">{t("openVenue")}</span>
             <Icon name="caret-down" size={14} className="-rotate-90 text-neutral-600" />
